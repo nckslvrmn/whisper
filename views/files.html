@@ -1,0 +1,13 @@
+{{define "content"}}
+<p class="px-3 font-weight-normal">Enter a file below you wish to send securely.<br /> The generated secret link
+  only works once to retrieve the file, then disappears forever.</p>
+<form onsubmit="postSecretFile(event)" id="form" class="pt-3 px-3 form-signin">
+  <div class="mb-3 form-group">
+    <input class="form-control" id="file" ref="file" type="file">
+  </div>
+  <br />
+  <div class="form-group d-grid gap-2">
+    <input type="submit" class="btn btn-primary" value="Create Secret Link">
+  </div>
+</form>
+{{end}}

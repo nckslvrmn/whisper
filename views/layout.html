@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Secrets</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css"
+    integrity="sha512-jnSuA4Ss2PkkikSOLtYs8BlYIeeIK1h99ty4YfvRPAlzr377vr3CXDb7sb7eEEBYjDtcYj+AjBH3FLv5uSJuXg=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"
+    integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="/static/site.css" />
+</head>
+
+<body class="text-left py-3">
+  <div class="form form-signin w-100 my-0 mx-auto">
+    <div class="text-center"><i class="fas fa-user-shield fa-5x mx-auto"></i></div>
+    <h1 class="text-center display-4 mb-4 font-weight-normal">Ephemeral Secrets</h1>
+    {{template "content" .}}
+    <div id="results" class="mw-100 p-3">
+      <br />
+      <div id="response">
+        <pre id="response_body" class="mw-50 fs-5"></pre>
+      </div>
+    </div>
+  </div>
+  <script src="/static/main.js"></script>
+</body>
+
+</html>
