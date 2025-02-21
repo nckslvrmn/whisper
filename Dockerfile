@@ -11,4 +11,6 @@ COPY --from=base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY views /views/
 COPY static /static/
 COPY --from=build --chmod=0755 /src/main /main
+
+EXPOSE 6666
 ENTRYPOINT ["/main"]
