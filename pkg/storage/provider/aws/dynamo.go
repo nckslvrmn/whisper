@@ -1,4 +1,4 @@
-package ots_dynamo
+package aws
 
 import (
 	"context"
@@ -9,8 +9,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	dynamotypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/nckslvrmn/go_ots/pkg/simple_crypt"
+	storagetypes "github.com/nckslvrmn/go_ots/pkg/storage/types"
 	"github.com/nckslvrmn/go_ots/pkg/utils"
 )
 
@@ -18,7 +19,7 @@ type DynamoStore struct {
 	client *dynamodb.Client
 }
 
-func NewDynamoStore() *DynamoStore {
+func NewDynamoStore() storagetypes.SecretStore {
 	cfg, _ := config.LoadDefaultConfig(context.TODO(), config.WithRegion(utils.AWSRegion))
 	return &DynamoStore{
 		client: dynamodb.NewFromConfig(cfg),
@@ -26,15 +27,15 @@ func NewDynamoStore() *DynamoStore {
 }
 
 func (d *DynamoStore) StoreSecret(s *simple_crypt.Secret) error {
-	item := map[string]types.AttributeValue{
-		"secret_id":  &types.AttributeValueMemberS{Value: s.SecretId},
-		"view_count": &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", s.ViewCount)},
-		"data":       &types.AttributeValueMemberS{Value: utils.B64E(s.Data)},
-		"is_file":    &types.AttributeValueMemberBOOL{Value: s.IsFile},
-		"nonce":      &types.AttributeValueMemberS{Value: utils.B64E(s.Nonce)},
-		"salt":       &types.AttributeValueMemberS{Value: utils.B64E(s.Salt)},
-		"header":     &types.AttributeValueMemberS{Value: utils.B64E(s.Header)},
-		"ttl":        &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", time.Now().AddDate(0, 0, utils.TTLDays).Unix())},
+	item := map[string]dynamotypes.AttributeValue{
+		"secret_id":  &dynamotypes.AttributeValueMemberS{Value: s.SecretId},
+		"view_count": &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", s.ViewCount)},
+		"data":       &dynamotypes.AttributeValueMemberS{Value: utils.B64E(s.Data)},
+		"is_file":    &dynamotypes.AttributeValueMemberBOOL{Value: s.IsFile},
+		"nonce":      &dynamotypes.AttributeValueMemberS{Value: utils.B64E(s.Nonce)},
+		"salt":       &dynamotypes.AttributeValueMemberS{Value: utils.B64E(s.Salt)},
+		"header":     &dynamotypes.AttributeValueMemberS{Value: utils.B64E(s.Header)},
+		"ttl":        &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", time.Now().AddDate(0, 0, utils.TTLDays).Unix())},
 	}
 
 	_, err := d.client.PutItem(
@@ -53,8 +54,8 @@ func (d *DynamoStore) GetSecret(secretId string) (*simple_crypt.Secret, error) {
 		context.TODO(),
 		&dynamodb.GetItemInput{
 			TableName: aws.String(utils.DynamoTable),
-			Key: map[string]types.AttributeValue{
-				"secret_id": &types.AttributeValueMemberS{Value: secretId},
+			Key: map[string]dynamotypes.AttributeValue{
+				"secret_id": &dynamotypes.AttributeValueMemberS{Value: secretId},
 			},
 		},
 	)
@@ -67,27 +68,27 @@ func (d *DynamoStore) GetSecret(secretId string) (*simple_crypt.Secret, error) {
 		SecretId: secretId,
 	}
 
-	if v, ok := result.Item["view_count"].(*types.AttributeValueMemberN); ok {
+	if v, ok := result.Item["view_count"].(*dynamotypes.AttributeValueMemberN); ok {
 		secret.ViewCount, _ = strconv.Atoi(v.Value)
 	}
 
-	if v, ok := result.Item["is_file"].(*types.AttributeValueMemberBOOL); ok {
+	if v, ok := result.Item["is_file"].(*dynamotypes.AttributeValueMemberBOOL); ok {
 		secret.IsFile = v.Value
 	}
 
-	if v, ok := result.Item["data"].(*types.AttributeValueMemberS); ok {
+	if v, ok := result.Item["data"].(*dynamotypes.AttributeValueMemberS); ok {
 		secret.Data, _ = utils.B64D(v.Value)
 	}
 
-	if v, ok := result.Item["nonce"].(*types.AttributeValueMemberS); ok {
+	if v, ok := result.Item["nonce"].(*dynamotypes.AttributeValueMemberS); ok {
 		secret.Nonce, _ = utils.B64D(v.Value)
 	}
 
-	if v, ok := result.Item["salt"].(*types.AttributeValueMemberS); ok {
+	if v, ok := result.Item["salt"].(*dynamotypes.AttributeValueMemberS); ok {
 		secret.Salt, _ = utils.B64D(v.Value)
 	}
 
-	if v, ok := result.Item["header"].(*types.AttributeValueMemberS); ok {
+	if v, ok := result.Item["header"].(*dynamotypes.AttributeValueMemberS); ok {
 		secret.Header, _ = utils.B64D(v.Value)
 	}
 
@@ -99,8 +100,8 @@ func (d *DynamoStore) DeleteSecret(secretId string) error {
 		context.TODO(),
 		&dynamodb.DeleteItemInput{
 			TableName: aws.String(utils.DynamoTable),
-			Key: map[string]types.AttributeValue{
-				"secret_id": &types.AttributeValueMemberS{Value: secretId},
+			Key: map[string]dynamotypes.AttributeValue{
+				"secret_id": &dynamotypes.AttributeValueMemberS{Value: secretId},
 			},
 		},
 	)
@@ -112,12 +113,12 @@ func (d *DynamoStore) UpdateSecret(s *simple_crypt.Secret) error {
 		context.TODO(),
 		&dynamodb.UpdateItemInput{
 			TableName: aws.String(utils.DynamoTable),
-			Key: map[string]types.AttributeValue{
-				"secret_id": &types.AttributeValueMemberS{Value: s.SecretId},
+			Key: map[string]dynamotypes.AttributeValue{
+				"secret_id": &dynamotypes.AttributeValueMemberS{Value: s.SecretId},
 			},
 			UpdateExpression: aws.String("SET view_count = :val"),
-			ExpressionAttributeValues: map[string]types.AttributeValue{
-				":val": &types.AttributeValueMemberN{Value: fmt.Sprintf("%d", s.ViewCount)},
+			ExpressionAttributeValues: map[string]dynamotypes.AttributeValue{
+				":val": &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", s.ViewCount)},
 			},
 		},
 	)

@@ -1,4 +1,4 @@
-package ots_firestore
+package gcp
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/nckslvrmn/go_ots/pkg/simple_crypt"
+	storagetypes "github.com/nckslvrmn/go_ots/pkg/storage/types"
 	"github.com/nckslvrmn/go_ots/pkg/utils"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -16,7 +17,7 @@ type FirestoreStore struct {
 	client *firestore.Client
 }
 
-func NewFirestoreStore() (*FirestoreStore, error) {
+func NewFirestoreStore() (storagetypes.SecretStore, error) {
 	client, err := firestore.NewClientWithDatabase(context.Background(), utils.GCPProjectID, utils.FirestoreDatabase)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create firestore client: %v", err)

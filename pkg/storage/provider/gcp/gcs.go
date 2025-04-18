@@ -1,4 +1,4 @@
-package ots_gcs
+package gcp
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"cloud.google.com/go/storage"
+	storagetypes "github.com/nckslvrmn/go_ots/pkg/storage/types"
 	"github.com/nckslvrmn/go_ots/pkg/utils"
 	"google.golang.org/api/option"
 )
@@ -16,7 +17,7 @@ type GCSStore struct {
 	bucket *storage.BucketHandle
 }
 
-func NewGCSStore() *GCSStore {
+func NewGCSStore() storagetypes.FileStore {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx, option.WithScopes(storage.ScopeReadWrite))
 	if err != nil {

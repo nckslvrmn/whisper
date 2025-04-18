@@ -1,4 +1,4 @@
-package ots_s3
+package aws
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	storagetypes "github.com/nckslvrmn/go_ots/pkg/storage/types"
 	"github.com/nckslvrmn/go_ots/pkg/utils"
 )
 
@@ -17,7 +18,7 @@ type S3Store struct {
 	client *s3.Client
 }
 
-func NewS3Store() *S3Store {
+func NewS3Store() storagetypes.FileStore {
 	cfg, _ := config.LoadDefaultConfig(context.TODO(), config.WithRegion(utils.AWSRegion))
 	return &S3Store{
 		client: s3.NewFromConfig(cfg),
