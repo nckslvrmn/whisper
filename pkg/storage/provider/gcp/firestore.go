@@ -3,7 +3,6 @@ package gcp
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/nckslvrmn/go_ots/pkg/simple_crypt"
@@ -39,7 +38,7 @@ func (f *FirestoreStore) StoreSecret(s *simple_crypt.Secret) error {
 		"nonce":      utils.B64E(s.Nonce),
 		"salt":       utils.B64E(s.Salt),
 		"header":     utils.B64E(s.Header),
-		"ttl":        time.Now().AddDate(0, 0, utils.TTLDays).Unix(),
+		"ttl":        s.TTL,
 	}
 
 	// Store in Firestore using secret_id as document ID

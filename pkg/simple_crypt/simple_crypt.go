@@ -9,14 +9,15 @@ import (
 )
 
 type Secret struct {
-	SecretId   string
-	Passphrase string
-	ViewCount  int
-	IsFile     bool
 	Data       []byte
-	Nonce      []byte
-	Salt       []byte
 	Header     []byte
+	IsFile     bool
+	Nonce      []byte
+	Passphrase string
+	Salt       []byte
+	SecretId   string
+	TTL        int64
+	ViewCount  int
 }
 
 func NewSecret() *Secret {
@@ -27,6 +28,7 @@ func NewSecret() *Secret {
 		Salt:       utils.RandBytes(16),
 		Header:     utils.RandBytes(16),
 		IsFile:     false,
+		TTL:        utils.SanitizeTTL("7"),
 	}
 }
 

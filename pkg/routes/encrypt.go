@@ -15,6 +15,7 @@ func EncryptString(c echo.Context) error {
 	var encryptData struct {
 		Secret    string `json:"secret"`
 		ViewCount string `json:"view_count"`
+		TTLDays   string `json:"ttl_days"`
 	}
 
 	err := c.Bind(&encryptData)
@@ -25,6 +26,8 @@ func EncryptString(c echo.Context) error {
 
 	secret := simple_crypt.NewSecret()
 	secret.ViewCount = utils.SanitizeViewCount(encryptData.ViewCount)
+	secret.TTL = utils.SanitizeTTL(encryptData.TTLDays)
+
 	secret.Data, err = secret.Encrypt([]byte(encryptData.Secret))
 	if err != nil {
 		c.Logger().Error(err)

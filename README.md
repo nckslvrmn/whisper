@@ -28,7 +28,6 @@ via environment variables.
 | GCP_PROJECT_ID      | :white_check_mark:*| Google Cloud project ID for Firestore                                |
 | FIRESTORE_DATABASE  | :white_check_mark:*| Name of the Firestore database in which to store secrets             |
 | GCS_BUCKET          | :white_check_mark:*| Name of the Google Cloud Storage bucket for encrypted files          |
-| TTL_DAYS            | :x:                | (default: 7) TTL in days of the secret. will auto-delete after this  |
 | AWS_REGION          | :x:                | (default: us-east-1) AWS region of the s3 bucket and dynamo db table |
 
 *Note: You must configure either AWS (DYNAMO_TABLE + S3_BUCKET) or Google Cloud (GCP_PROJECT_ID + FIRESTORE_DATABASE + GCS_BUCKET) environment variables depending on which storage backend you want to use.

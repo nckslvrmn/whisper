@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -35,7 +34,7 @@ func (d *DynamoStore) StoreSecret(s *simple_crypt.Secret) error {
 		"nonce":      &dynamotypes.AttributeValueMemberS{Value: utils.B64E(s.Nonce)},
 		"salt":       &dynamotypes.AttributeValueMemberS{Value: utils.B64E(s.Salt)},
 		"header":     &dynamotypes.AttributeValueMemberS{Value: utils.B64E(s.Header)},
-		"ttl":        &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", time.Now().AddDate(0, 0, utils.TTLDays).Unix())},
+		"ttl":        &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", s.TTL)},
 	}
 
 	_, err := d.client.PutItem(

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"slices"
 	"strconv"
+	"time"
 )
 
 var AWSRegion string
@@ -15,7 +17,6 @@ var FirestoreDatabase string
 var GCPProjectID string
 var GCSBucket string
 var S3Bucket string
-var TTLDays int
 var UsesAWS bool
 var UsesGCP bool
 
@@ -39,19 +40,23 @@ func LoadEnv() error {
 		AWSRegion = regionValue
 	}
 
-	TTLDays = 7
-	if ttlValue, ttlExists := os.LookupEnv("TTL_DAYS"); ttlExists {
-		TTLDays, _ = strconv.Atoi(ttlValue)
-	}
 	return nil
 }
 
 func SanitizeViewCount(view_count string) int {
-	vc, err := strconv.ParseFloat(view_count, 64)
+	vc, err := strconv.Atoi(view_count)
 	if err != nil || vc <= 0 || vc >= 10 {
 		return 1
 	}
-	return int(vc)
+	return vc
+}
+
+func SanitizeTTL(ttl_in string) int64 {
+	ttl, _ := strconv.Atoi(ttl_in)
+	if !slices.Contains([]int{1, 3, 7, 14, 30}, ttl) {
+		ttl = 7
+	}
+	return time.Now().AddDate(0, 0, ttl).Unix()
 }
 
 func RandString(length int, url_safe bool) string {
