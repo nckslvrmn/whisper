@@ -12,5 +12,5 @@ COPY views /views/
 COPY static /static/
 COPY --from=build --chmod=0755 /src/main /main
 
-EXPOSE 6666
+EXPOSE 8081
 ENTRYPOINT ["/main"]
