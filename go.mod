@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/storage v1.52.0
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
-	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.42.4
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.2
 	github.com/labstack/echo/v4 v4.13.3
 	golang.org/x/crypto v0.37.0
