@@ -12,9 +12,47 @@ import (
 	"google.golang.org/api/option"
 )
 
+// BucketHandleInterface defines the interface for bucket operations we use
+type BucketHandleInterface interface {
+	Object(name string) ObjectHandleInterface
+}
+
+// ObjectHandleInterface defines the interface for object operations we use
+type ObjectHandleInterface interface {
+	NewReader(ctx context.Context) (io.ReadCloser, error)
+	NewWriter(ctx context.Context) io.WriteCloser
+	Delete(ctx context.Context) error
+}
+
+// bucketHandleWrapper wraps storage.BucketHandle to implement BucketHandleInterface
+type bucketHandleWrapper struct {
+	bucket *storage.BucketHandle
+}
+
+func (b *bucketHandleWrapper) Object(name string) ObjectHandleInterface {
+	return &objectHandleWrapper{obj: b.bucket.Object(name)}
+}
+
+// objectHandleWrapper wraps storage.ObjectHandle to implement ObjectHandleInterface
+type objectHandleWrapper struct {
+	obj *storage.ObjectHandle
+}
+
+func (o *objectHandleWrapper) NewReader(ctx context.Context) (io.ReadCloser, error) {
+	return o.obj.NewReader(ctx)
+}
+
+func (o *objectHandleWrapper) NewWriter(ctx context.Context) io.WriteCloser {
+	return o.obj.NewWriter(ctx)
+}
+
+func (o *objectHandleWrapper) Delete(ctx context.Context) error {
+	return o.obj.Delete(ctx)
+}
+
 type GCSStore struct {
 	client *storage.Client
-	bucket *storage.BucketHandle
+	bucket BucketHandleInterface
 }
 
 func NewGCSStore() storagetypes.FileStore {
@@ -26,7 +64,7 @@ func NewGCSStore() storagetypes.FileStore {
 
 	return &GCSStore{
 		client: client,
-		bucket: client.Bucket(utils.GCSBucket),
+		bucket: &bucketHandleWrapper{bucket: client.Bucket(utils.GCSBucket)},
 	}
 }
 
