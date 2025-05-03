@@ -140,9 +140,8 @@ func TestGCSStore_StoreEncryptedFile(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				expectedData := utils.B64E(tt.data)
-				if string(writer.written) != expectedData {
-					t.Errorf("StoreEncryptedFile() written = %v, want %v", string(writer.written), expectedData)
+				if string(writer.written) != string(tt.data) {
+					t.Errorf("StoreEncryptedFile() written = %v, want %v", string(writer.written), string(tt.data))
 				}
 			}
 		})

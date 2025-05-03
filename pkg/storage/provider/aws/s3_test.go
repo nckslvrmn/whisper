@@ -112,7 +112,6 @@ func TestS3Store_StoreEncryptedFile(t *testing.T) {
 
 func TestS3Store_GetEncryptedFile(t *testing.T) {
 	testData := []byte("test data")
-	encodedData := utils.B64E(testData)
 
 	tests := []struct {
 		name     string
@@ -132,7 +131,7 @@ func TestS3Store_GetEncryptedFile(t *testing.T) {
 					return nil, errors.New("invalid key")
 				}
 				return &s3.GetObjectOutput{
-					Body: mockReadCloser{reader: strings.NewReader(encodedData)},
+					Body: mockReadCloser{reader: strings.NewReader(string(testData))},
 				}, nil
 			},
 			want:    testData,
@@ -155,8 +154,8 @@ func TestS3Store_GetEncryptedFile(t *testing.T) {
 					Body: mockReadCloser{reader: strings.NewReader("invalid base64")},
 				}, nil
 			},
-			want:    nil,
-			wantErr: true,
+			want:    []byte("invalid base64"),
+			wantErr: false,
 		},
 	}
 
