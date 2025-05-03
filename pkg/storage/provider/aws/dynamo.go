@@ -14,8 +14,16 @@ import (
 	"github.com/nckslvrmn/go_ots/pkg/utils"
 )
 
+// DynamoDBAPI defines the interface for DynamoDB operations we use
+type DynamoDBAPI interface {
+	GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
+	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
+	DeleteItem(ctx context.Context, params *dynamodb.DeleteItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
+	UpdateItem(ctx context.Context, params *dynamodb.UpdateItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
+}
+
 type DynamoStore struct {
-	client *dynamodb.Client
+	client DynamoDBAPI
 }
 
 func NewDynamoStore() storagetypes.SecretStore {
@@ -49,7 +57,7 @@ func (d *DynamoStore) StoreSecret(s *simple_crypt.Secret) error {
 }
 
 func (d *DynamoStore) GetSecret(secretId string) (*simple_crypt.Secret, error) {
-	result, _ := d.client.GetItem(
+	result, err := d.client.GetItem(
 		context.TODO(),
 		&dynamodb.GetItemInput{
 			TableName: aws.String(utils.DynamoTable),
@@ -58,6 +66,9 @@ func (d *DynamoStore) GetSecret(secretId string) (*simple_crypt.Secret, error) {
 			},
 		},
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret: %w", err)
+	}
 
 	if result.Item == nil {
 		return nil, fmt.Errorf("secret not found")
@@ -68,7 +79,11 @@ func (d *DynamoStore) GetSecret(secretId string) (*simple_crypt.Secret, error) {
 	}
 
 	if v, ok := result.Item["view_count"].(*dynamotypes.AttributeValueMemberN); ok {
-		secret.ViewCount, _ = strconv.Atoi(v.Value)
+		viewCount, err := strconv.Atoi(v.Value)
+		if err != nil {
+			return nil, fmt.Errorf("invalid view count: %w", err)
+		}
+		secret.ViewCount = viewCount
 	}
 
 	if v, ok := result.Item["is_file"].(*dynamotypes.AttributeValueMemberBOOL); ok {
@@ -76,19 +91,35 @@ func (d *DynamoStore) GetSecret(secretId string) (*simple_crypt.Secret, error) {
 	}
 
 	if v, ok := result.Item["data"].(*dynamotypes.AttributeValueMemberS); ok {
-		secret.Data, _ = utils.B64D(v.Value)
+		data, err := utils.B64D(v.Value)
+		if err != nil {
+			return nil, fmt.Errorf("invalid data encoding: %w", err)
+		}
+		secret.Data = data
 	}
 
 	if v, ok := result.Item["nonce"].(*dynamotypes.AttributeValueMemberS); ok {
-		secret.Nonce, _ = utils.B64D(v.Value)
+		nonce, err := utils.B64D(v.Value)
+		if err != nil {
+			return nil, fmt.Errorf("invalid nonce encoding: %w", err)
+		}
+		secret.Nonce = nonce
 	}
 
 	if v, ok := result.Item["salt"].(*dynamotypes.AttributeValueMemberS); ok {
-		secret.Salt, _ = utils.B64D(v.Value)
+		salt, err := utils.B64D(v.Value)
+		if err != nil {
+			return nil, fmt.Errorf("invalid salt encoding: %w", err)
+		}
+		secret.Salt = salt
 	}
 
 	if v, ok := result.Item["header"].(*dynamotypes.AttributeValueMemberS); ok {
-		secret.Header, _ = utils.B64D(v.Value)
+		header, err := utils.B64D(v.Value)
+		if err != nil {
+			return nil, fmt.Errorf("invalid header encoding: %w", err)
+		}
+		secret.Header = header
 	}
 
 	return secret, nil

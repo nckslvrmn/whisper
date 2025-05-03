@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"strings"
+	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -14,8 +14,15 @@ import (
 	"github.com/nckslvrmn/go_ots/pkg/utils"
 )
 
+// S3API defines the interface for S3 operations we use
+type S3API interface {
+	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
+}
+
 type S3Store struct {
-	client *s3.Client
+	client S3API
 }
 
 func NewS3Store() storagetypes.FileStore {
@@ -29,7 +36,7 @@ func (s *S3Store) StoreEncryptedFile(secret_id string, data []byte) error {
 	_, err := s.client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:               aws.String(utils.S3Bucket),
 		Key:                  aws.String(secret_id + ".enc"),
-		Body:                 strings.NewReader(utils.B64E(data)),
+		Body:                 bytes.NewReader(data),
 		ACL:                  types.ObjectCannedACLPrivate,
 		ServerSideEncryption: types.ServerSideEncryptionAwsKms,
 	})
@@ -50,13 +57,12 @@ func (s *S3Store) GetEncryptedFile(secret_id string) ([]byte, error) {
 	}
 	defer getObjectOutput.Body.Close()
 
-	buf := new(bytes.Buffer)
-	_, err = buf.ReadFrom(getObjectOutput.Body)
+	data, err := io.ReadAll(getObjectOutput.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the S3 file content: %w", err)
 	}
 
-	return buf.Bytes(), nil
+	return data, nil
 }
 
 func (s *S3Store) DeleteEncryptedFile(secret_id string) error {

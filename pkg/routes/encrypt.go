@@ -21,7 +21,12 @@ func EncryptString(c echo.Context) error {
 	err := c.Bind(&encryptData)
 	if err != nil {
 		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "error storing secret"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+
+	// Check if the secret is empty
+	if encryptData.Secret == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "secret cannot be empty"})
 	}
 
 	secret := simple_crypt.NewSecret()

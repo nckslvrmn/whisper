@@ -7,7 +7,6 @@ import (
 
 	echo "github.com/labstack/echo/v4"
 	"github.com/nckslvrmn/go_ots/pkg/storage"
-	"github.com/nckslvrmn/go_ots/pkg/utils"
 )
 
 var decryptData struct {
@@ -49,11 +48,7 @@ func Decrypt(c echo.Context) error {
 			c.Logger().Error(err)
 			return c.NoContent(http.StatusNotFound)
 		}
-		secret.Data, err = utils.B64D(string(fileData))
-		if err != nil {
-			c.Logger().Error(err)
-			return c.NoContent(http.StatusNotFound)
-		}
+		secret.Data = fileData
 		decrypted, err = secret.Decrypt()
 		if err != nil {
 			c.Logger().Error(err)

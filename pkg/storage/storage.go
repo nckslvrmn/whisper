@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 
+	"github.com/nckslvrmn/go_ots/pkg/simple_crypt"
 	"github.com/nckslvrmn/go_ots/pkg/storage/provider/aws"
 	"github.com/nckslvrmn/go_ots/pkg/storage/provider/gcp"
 	"github.com/nckslvrmn/go_ots/pkg/storage/types"
@@ -43,4 +44,19 @@ func GetSecretStore() types.SecretStore {
 // GetFileStore returns the configured file store
 func GetFileStore() types.FileStore {
 	return fileStore
+}
+
+// SetSecretStore sets the secret store (for testing)
+func SetSecretStore(store types.SecretStore) {
+	secretStore = store
+}
+
+// SetFileStore sets the file store (for testing)
+func SetFileStore(store types.FileStore) {
+	fileStore = store
+}
+
+// NewSecret creates a new secret (for testing)
+func NewSecret() *simple_crypt.Secret {
+	return simple_crypt.NewSecret()
 }
