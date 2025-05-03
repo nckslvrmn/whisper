@@ -1,10 +1,10 @@
 package gcp
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"cloud.google.com/go/storage"
 	storagetypes "github.com/nckslvrmn/go_ots/pkg/storage/types"
@@ -76,7 +76,7 @@ func (g *GCSStore) StoreEncryptedFile(secret_id string, data []byte) error {
 	writer := obj.NewWriter(ctx)
 
 	// Write the encrypted data
-	if _, err := io.Copy(writer, strings.NewReader(utils.B64E(data))); err != nil {
+	if _, err := io.Copy(writer, bytes.NewReader(data)); err != nil {
 		writer.Close()
 		return fmt.Errorf("failed to write encrypted file to GCS: %w", err)
 	}
