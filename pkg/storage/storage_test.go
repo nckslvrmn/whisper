@@ -8,6 +8,7 @@ import (
 )
 
 func TestInitialize(t *testing.T) {
+	os.WriteFile("/tmp/fake_creds.json", []byte("{\"auth\": \"test\"}\n"), 0644)
 	tests := []struct {
 		name      string
 		envVars   map[string]string
@@ -25,9 +26,10 @@ func TestInitialize(t *testing.T) {
 		{
 			name: "GCP configuration",
 			envVars: map[string]string{
-				"FIRESTORE_DATABASE": "test-db",
-				"GCP_PROJECT_ID":     "test-project",
-				"GCS_BUCKET":         "test-bucket",
+				"FIRESTORE_DATABASE":      "test-db",
+				"GCP_PROJECT_ID":          "test-project",
+				"GCS_BUCKET":              "test-bucket",
+				"FIRESTORE_EMULATOR_HOST": "localhost:8080",
 			},
 			wantError: false,
 		},
