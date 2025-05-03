@@ -207,7 +207,6 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
   font-size: 0.9rem;
   line-height: 1.5;
   overflow-x: auto;
-  color: var(--foreground);
   margin: 0;
   align-items: center;
   width: 100%;
@@ -231,9 +230,12 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 }
 
 .alert-success {
-  background-color: rgba(80, 250, 123, 0.1);
-  color: var(--green);
-  border: 1px solid var(--green);
+  background-color: var(--green) !important;
+
+}
+
+.alert-warning #response_body {
+  color: var(--bs-success-text-emphasis);
 }
 
 .alert-warning {
