@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	echo "github.com/labstack/echo/v4"
-	"github.com/nckslvrmn/go_ots/pkg/storage"
+	"github.com/nckslvrmn/secure_secret_share/pkg/storage"
 )
 
 var decryptData struct {

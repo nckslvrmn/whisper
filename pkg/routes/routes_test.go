@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
-	"github.com/nckslvrmn/go_ots/pkg/simple_crypt"
-	"github.com/nckslvrmn/go_ots/pkg/storage"
-	"github.com/nckslvrmn/go_ots/pkg/storage/mock"
+	"github.com/nckslvrmn/secure_secret_share/pkg/simple_crypt"
+	"github.com/nckslvrmn/secure_secret_share/pkg/storage"
+	"github.com/nckslvrmn/secure_secret_share/pkg/storage/mock"
 )
 
 func setupTest() (*echo.Echo, *mock.MockSecretStore, *mock.MockFileStore) {

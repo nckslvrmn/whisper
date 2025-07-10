@@ -3,7 +3,7 @@ package mock
 import (
 	"fmt"
 
-	"github.com/nckslvrmn/go_ots/pkg/simple_crypt"
+	"github.com/nckslvrmn/secure_secret_share/pkg/simple_crypt"
 )
 
 // MockSecretStore implements the SecretStore interface for testing

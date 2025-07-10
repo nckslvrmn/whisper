@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"cloud.google.com/go/storage"
-	"github.com/nckslvrmn/go_ots/pkg/utils"
+	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
 // mockReadCloser implements io.ReadCloser for testing

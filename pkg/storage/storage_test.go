@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/nckslvrmn/go_ots/pkg/utils"
+	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
 func generateFakePEMKey() (string, error) {

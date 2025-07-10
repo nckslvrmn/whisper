@@ -10,7 +10,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/nckslvrmn/go_ots/pkg/utils"
+	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
 // MockS3Client implements S3API

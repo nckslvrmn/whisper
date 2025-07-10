@@ -9,9 +9,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamotypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/nckslvrmn/go_ots/pkg/simple_crypt"
-	storagetypes "github.com/nckslvrmn/go_ots/pkg/storage/types"
-	"github.com/nckslvrmn/go_ots/pkg/utils"
+	"github.com/nckslvrmn/secure_secret_share/pkg/simple_crypt"
+	storagetypes "github.com/nckslvrmn/secure_secret_share/pkg/storage/types"
+	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
 // DynamoDBAPI defines the interface for DynamoDB operations we use

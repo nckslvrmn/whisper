@@ -3,11 +3,11 @@ package storage
 import (
 	"fmt"
 
-	"github.com/nckslvrmn/go_ots/pkg/simple_crypt"
-	"github.com/nckslvrmn/go_ots/pkg/storage/provider/aws"
-	"github.com/nckslvrmn/go_ots/pkg/storage/provider/gcp"
-	"github.com/nckslvrmn/go_ots/pkg/storage/types"
-	"github.com/nckslvrmn/go_ots/pkg/utils"
+	"github.com/nckslvrmn/secure_secret_share/pkg/simple_crypt"
+	"github.com/nckslvrmn/secure_secret_share/pkg/storage/provider/aws"
+	"github.com/nckslvrmn/secure_secret_share/pkg/storage/provider/gcp"
+	"github.com/nckslvrmn/secure_secret_share/pkg/storage/types"
+	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
 var secretStore types.SecretStore

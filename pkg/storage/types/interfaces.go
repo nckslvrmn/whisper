@@ -1,6 +1,6 @@
 package types
 
-import "github.com/nckslvrmn/go_ots/pkg/simple_crypt"
+import "github.com/nckslvrmn/secure_secret_share/pkg/simple_crypt"
 
 // SecretStore defines the interface for storing and retrieving secrets
 type SecretStore interface {

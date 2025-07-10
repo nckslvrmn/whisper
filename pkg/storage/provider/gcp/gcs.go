@@ -7,8 +7,8 @@ import (
 	"io"
 
 	"cloud.google.com/go/storage"
-	storagetypes "github.com/nckslvrmn/go_ots/pkg/storage/types"
-	"github.com/nckslvrmn/go_ots/pkg/utils"
+	storagetypes "github.com/nckslvrmn/secure_secret_share/pkg/storage/types"
+	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 	"google.golang.org/api/option"
 )
 

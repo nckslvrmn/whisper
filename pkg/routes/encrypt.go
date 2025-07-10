@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	echo "github.com/labstack/echo/v4"
-	"github.com/nckslvrmn/go_ots/pkg/simple_crypt"
-	"github.com/nckslvrmn/go_ots/pkg/storage"
-	"github.com/nckslvrmn/go_ots/pkg/utils"
+	"github.com/nckslvrmn/secure_secret_share/pkg/simple_crypt"
+	"github.com/nckslvrmn/secure_secret_share/pkg/storage"
+	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
 func EncryptString(c echo.Context) error {

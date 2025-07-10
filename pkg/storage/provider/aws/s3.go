@@ -10,8 +10,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	storagetypes "github.com/nckslvrmn/go_ots/pkg/storage/types"
-	"github.com/nckslvrmn/go_ots/pkg/utils"
+	storagetypes "github.com/nckslvrmn/secure_secret_share/pkg/storage/types"
+	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
 // S3API defines the interface for S3 operations we use

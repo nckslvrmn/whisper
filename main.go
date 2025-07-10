@@ -7,9 +7,9 @@ import (
 
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/nckslvrmn/go_ots/pkg/routes"
-	"github.com/nckslvrmn/go_ots/pkg/storage"
-	"github.com/nckslvrmn/go_ots/pkg/utils"
+	"github.com/nckslvrmn/secure_secret_share/pkg/routes"
+	"github.com/nckslvrmn/secure_secret_share/pkg/storage"
+	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
 type TemplateRegistry struct {

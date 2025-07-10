@@ -1,4 +1,4 @@
-module github.com/nckslvrmn/go_ots
+module github.com/nckslvrmn/secure_secret_share
 
 go 1.24.0
 
