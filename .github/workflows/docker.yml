@@ -1,0 +1,33 @@
+name: Deploy Image to GHCR
+
+on:
+  release:
+    types: [ published ]
+  workflow_dispatch:
+
+
+jobs:
+  push-secure-secret-share-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+    - name: 'Checkout GitHub Action'
+      uses: actions/checkout@v4
+
+    - name: 'Login to GitHub Container Registry'
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{github.actor}}
+        password: ${{secrets.GITHUB_TOKEN}}
+
+    - name: Build and push with version tag
+      run: |
+        VERSION=${{ github.ref_name }}
+
+        docker build . --tag ghcr.io/${{ github.repository_owner }}/secure_secret_share:${VERSION}
+        docker build . --tag ghcr.io/${{ github.repository_owner }}/secure_secret_share:latest
+        docker push ghcr.io/${{ github.repository_owner }}/secure_secret_share:${VERSION}
+        docker push ghcr.io/${{ github.repository_owner }}/secure_secret_share:latest
