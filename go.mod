@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
 	github.com/labstack/echo/v4 v4.13.4
 	golang.org/x/crypto v0.40.0
-	google.golang.org/api v0.241.0
+	google.golang.org/api v0.242.0
 	google.golang.org/grpc v1.73.0
 )
 
