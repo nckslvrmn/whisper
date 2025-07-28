@@ -161,6 +161,11 @@ function toggleEncryptionType(type) {
     textToggle.classList.add('btn-primary');
     fileToggle.classList.remove('btn-primary');
     fileToggle.classList.add('btn-outline-primary');
+
+    const fileInput = document.getElementById('file');
+    if (fileInput) {
+      fileInput.value = '';
+    }
   } else {
     textForm.style.display = 'none';
     fileForm.style.display = 'block';
@@ -168,6 +173,11 @@ function toggleEncryptionType(type) {
     textToggle.classList.add('btn-outline-primary');
     fileToggle.classList.remove('btn-outline-primary');
     fileToggle.classList.add('btn-primary');
+
+    const textArea = document.querySelector('#form textarea[name="secret"]');
+    if (textArea) {
+      textArea.value = '';
+    }
   }
 
   document.getElementById('results').classList.remove('active');
