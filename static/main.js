@@ -147,3 +147,36 @@ function setResp(level, content, text_resp) {
 
   results.classList.add('active');
 }
+
+function toggleEncryptionType(type) {
+  const textForm = document.getElementById('textForm');
+  const fileForm = document.getElementById('fileForm');
+  const textToggle = document.getElementById('textToggle');
+  const fileToggle = document.getElementById('fileToggle');
+
+  if (type === 'text') {
+    textForm.style.display = 'block';
+    fileForm.style.display = 'none';
+    textToggle.classList.remove('btn-outline-primary');
+    textToggle.classList.add('btn-primary');
+    fileToggle.classList.remove('btn-primary');
+    fileToggle.classList.add('btn-outline-primary');
+  } else {
+    textForm.style.display = 'none';
+    fileForm.style.display = 'block';
+    textToggle.classList.remove('btn-primary');
+    textToggle.classList.add('btn-outline-primary');
+    fileToggle.classList.remove('btn-outline-primary');
+    fileToggle.classList.add('btn-primary');
+  }
+
+  document.getElementById('results').classList.remove('active');
+}
+
+window.addEventListener('DOMContentLoaded', (event) => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const type = urlParams.get('type');
+  if (type === 'file') {
+    toggleEncryptionType('file');
+  }
+});

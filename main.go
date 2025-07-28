@@ -16,7 +16,6 @@ type TemplateRegistry struct {
 	templates map[string]*template.Template
 }
 
-// Render implements the echo.Renderer interface
 func (t *TemplateRegistry) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
 	return t.templates[name].Execute(w, data)
 }
@@ -28,7 +27,6 @@ func main() {
 		e.Logger.Fatal(err)
 	}
 
-	// Initialize storage backend
 	if err := storage.Initialize(); err != nil {
 		e.Logger.Fatal(err)
 	}
@@ -38,7 +36,6 @@ func main() {
 		templates: templates,
 	}
 	templates["index"] = template.Must(template.ParseFiles("views/layout.html", "views/index.html"))
-	templates["files"] = template.Must(template.ParseFiles("views/layout.html", "views/files.html"))
 	templates["secret"] = template.Must(template.ParseFiles("views/layout.html", "views/secret.html"))
 
 	e.Static("/static", "static")
@@ -49,7 +46,6 @@ func main() {
 	e.HidePort = true
 
 	e.GET("/", index)
-	e.GET("/files", files)
 	e.GET("/secret/:secret_id", secret)
 	e.POST("/encrypt", routes.EncryptString)
 	e.POST("/encrypt_file", routes.EncryptFile)
@@ -60,10 +56,6 @@ func main() {
 
 func index(c echo.Context) error {
 	return c.Render(http.StatusOK, "index", nil)
-}
-
-func files(c echo.Context) error {
-	return c.Render(http.StatusOK, "files", nil)
 }
 
 func secret(c echo.Context) error {
