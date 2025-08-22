@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	cloud.google.com/go/firestore v1.18.0
 	cloud.google.com/go/storage v1.56.1
-	github.com/aws/aws-sdk-go-v2 v1.38.0
+	github.com/aws/aws-sdk-go-v2 v1.38.1
 	github.com/aws/aws-sdk-go-v2/config v1.31.1
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.49.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.0
