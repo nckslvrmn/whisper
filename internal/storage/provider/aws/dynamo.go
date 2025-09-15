@@ -3,14 +3,12 @@ package aws
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamotypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/nckslvrmn/secure_secret_share/pkg/simple_crypt"
-	storagetypes "github.com/nckslvrmn/secure_secret_share/pkg/storage/types"
+	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
 	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
@@ -33,16 +31,12 @@ func NewDynamoStore() storagetypes.SecretStore {
 	}
 }
 
-func (d *DynamoStore) StoreSecret(s *simple_crypt.Secret) error {
+func (d *DynamoStore) StoreSecretRaw(secretId string, data []byte, ttl int64, viewCount int) error {
 	item := map[string]dynamotypes.AttributeValue{
-		"secret_id":  &dynamotypes.AttributeValueMemberS{Value: s.SecretId},
-		"view_count": &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", s.ViewCount)},
-		"data":       &dynamotypes.AttributeValueMemberS{Value: utils.B64E(s.Data)},
-		"is_file":    &dynamotypes.AttributeValueMemberBOOL{Value: s.IsFile},
-		"nonce":      &dynamotypes.AttributeValueMemberS{Value: utils.B64E(s.Nonce)},
-		"salt":       &dynamotypes.AttributeValueMemberS{Value: utils.B64E(s.Salt)},
-		"header":     &dynamotypes.AttributeValueMemberS{Value: utils.B64E(s.Header)},
-		"ttl":        &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", s.TTL)},
+		"secret_id":  &dynamotypes.AttributeValueMemberS{Value: secretId},
+		"view_count": &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", viewCount)},
+		"data":       &dynamotypes.AttributeValueMemberS{Value: utils.B64E(data)},
+		"ttl":        &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", ttl)},
 	}
 
 	_, err := d.client.PutItem(
@@ -56,7 +50,7 @@ func (d *DynamoStore) StoreSecret(s *simple_crypt.Secret) error {
 	return err
 }
 
-func (d *DynamoStore) GetSecret(secretId string) (*simple_crypt.Secret, error) {
+func (d *DynamoStore) GetSecretRaw(secretId string) ([]byte, error) {
 	result, err := d.client.GetItem(
 		context.TODO(),
 		&dynamodb.GetItemInput{
@@ -74,55 +68,15 @@ func (d *DynamoStore) GetSecret(secretId string) (*simple_crypt.Secret, error) {
 		return nil, fmt.Errorf("secret not found")
 	}
 
-	secret := &simple_crypt.Secret{
-		SecretId: secretId,
-	}
-
-	if v, ok := result.Item["view_count"].(*dynamotypes.AttributeValueMemberN); ok {
-		viewCount, err := strconv.Atoi(v.Value)
-		if err != nil {
-			return nil, fmt.Errorf("invalid view count: %w", err)
-		}
-		secret.ViewCount = viewCount
-	}
-
-	if v, ok := result.Item["is_file"].(*dynamotypes.AttributeValueMemberBOOL); ok {
-		secret.IsFile = v.Value
-	}
-
 	if v, ok := result.Item["data"].(*dynamotypes.AttributeValueMemberS); ok {
 		data, err := utils.B64D(v.Value)
 		if err != nil {
 			return nil, fmt.Errorf("invalid data encoding: %w", err)
 		}
-		secret.Data = data
+		return data, nil
 	}
 
-	if v, ok := result.Item["nonce"].(*dynamotypes.AttributeValueMemberS); ok {
-		nonce, err := utils.B64D(v.Value)
-		if err != nil {
-			return nil, fmt.Errorf("invalid nonce encoding: %w", err)
-		}
-		secret.Nonce = nonce
-	}
-
-	if v, ok := result.Item["salt"].(*dynamotypes.AttributeValueMemberS); ok {
-		salt, err := utils.B64D(v.Value)
-		if err != nil {
-			return nil, fmt.Errorf("invalid salt encoding: %w", err)
-		}
-		secret.Salt = salt
-	}
-
-	if v, ok := result.Item["header"].(*dynamotypes.AttributeValueMemberS); ok {
-		header, err := utils.B64D(v.Value)
-		if err != nil {
-			return nil, fmt.Errorf("invalid header encoding: %w", err)
-		}
-		secret.Header = header
-	}
-
-	return secret, nil
+	return nil, fmt.Errorf("data field not found")
 }
 
 func (d *DynamoStore) DeleteSecret(secretId string) error {
@@ -138,22 +92,25 @@ func (d *DynamoStore) DeleteSecret(secretId string) error {
 	return err
 }
 
-func (d *DynamoStore) UpdateSecret(s *simple_crypt.Secret) error {
+func (d *DynamoStore) UpdateSecretRaw(secretId string, data []byte) error {
 	_, err := d.client.UpdateItem(
 		context.TODO(),
 		&dynamodb.UpdateItemInput{
 			TableName: aws.String(utils.DynamoTable),
 			Key: map[string]dynamotypes.AttributeValue{
-				"secret_id": &dynamotypes.AttributeValueMemberS{Value: s.SecretId},
+				"secret_id": &dynamotypes.AttributeValueMemberS{Value: secretId},
 			},
-			UpdateExpression: aws.String("SET view_count = :val"),
+			UpdateExpression: aws.String("SET #data = :val"),
+			ExpressionAttributeNames: map[string]string{
+				"#data": "data",
+			},
 			ExpressionAttributeValues: map[string]dynamotypes.AttributeValue{
-				":val": &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", s.ViewCount)},
+				":val": &dynamotypes.AttributeValueMemberS{Value: utils.B64E(data)},
 			},
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("failed to update view count for secret: %w", err)
+		return fmt.Errorf("failed to update secret: %w", err)
 	}
 
 	return nil

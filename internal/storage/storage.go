@@ -2,12 +2,12 @@ package storage
 
 import (
 	"fmt"
+	"os"
 
-	"github.com/nckslvrmn/secure_secret_share/pkg/simple_crypt"
-	"github.com/nckslvrmn/secure_secret_share/pkg/storage/provider/aws"
-	"github.com/nckslvrmn/secure_secret_share/pkg/storage/provider/gcp"
-	"github.com/nckslvrmn/secure_secret_share/pkg/storage/types"
-	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
+	"github.com/nckslvrmn/secure_secret_share/internal/storage/mock"
+	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/aws"
+	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/gcp"
+	"github.com/nckslvrmn/secure_secret_share/internal/storage/types"
 )
 
 var secretStore types.SecretStore
@@ -15,25 +15,30 @@ var fileStore types.FileStore
 
 // Initialize sets up the appropriate storage backend based on environment variables
 func Initialize() error {
-	// Check if AWS configuration is provided
-	if utils.UsesAWS {
+	// Check for AWS configuration
+	if os.Getenv("DYNAMO_TABLE") != "" && os.Getenv("S3_BUCKET") != "" {
+		// Use AWS storage
 		secretStore = aws.NewDynamoStore()
 		fileStore = aws.NewS3Store()
 		return nil
 	}
 
-	// Check if Google Cloud configuration is provided
-	if utils.UsesGCP {
+	// Check for GCP configuration
+	if os.Getenv("FIRESTORE_DATABASE") != "" && os.Getenv("GCS_BUCKET") != "" {
+		// Use GCP storage
 		var err error
 		secretStore, err = gcp.NewFirestoreStore()
 		if err != nil {
-			return fmt.Errorf("failed to initialize Firestore: %v", err)
+			return fmt.Errorf("failed to initialize Firestore: %w", err)
 		}
 		fileStore = gcp.NewGCSStore()
 		return nil
 	}
 
-	return fmt.Errorf("no valid storage configuration found")
+	// Fall back to mock storage for development
+	secretStore = mock.NewMockSecretStore()
+	fileStore = mock.NewMockFileStore()
+	return nil
 }
 
 // GetSecretStore returns the configured secret store
@@ -54,9 +59,4 @@ func SetSecretStore(store types.SecretStore) {
 // SetFileStore sets the file store (for testing)
 func SetFileStore(store types.FileStore) {
 	fileStore = store
-}
-
-// NewSecret creates a new secret (for testing)
-func NewSecret() *simple_crypt.Secret {
-	return simple_crypt.NewSecret()
 }

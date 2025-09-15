@@ -7,8 +7,8 @@ import (
 
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/nckslvrmn/secure_secret_share/pkg/routes"
-	"github.com/nckslvrmn/secure_secret_share/pkg/storage"
+	"github.com/nckslvrmn/secure_secret_share/internal/handlers"
+	"github.com/nckslvrmn/secure_secret_share/internal/storage"
 	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
@@ -35,11 +35,17 @@ func main() {
 	t := &TemplateRegistry{
 		templates: templates,
 	}
-	templates["index"] = template.Must(template.ParseFiles("views/layout.html", "views/index.html"))
-	templates["secret"] = template.Must(template.ParseFiles("views/layout.html", "views/secret.html"))
+	templates["index"] = template.Must(template.ParseFiles("web/templates/layout.html", "web/templates/index.html"))
+	templates["secret"] = template.Must(template.ParseFiles("web/templates/layout.html", "web/templates/secret.html"))
 
-	e.Static("/static", "static")
+	// Serve static files with compression support
+	e.Static("/static", "web/static")
 	e.Renderer = t
+	
+	// Enable gzip compression middleware
+	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
+		Level: 5,
+	}))
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.HideBanner = true
@@ -47,9 +53,9 @@ func main() {
 
 	e.GET("/", index)
 	e.GET("/secret/:secret_id", secret)
-	e.POST("/encrypt", routes.EncryptString)
-	e.POST("/encrypt_file", routes.EncryptFile)
-	e.POST("/decrypt", routes.Decrypt)
+	e.POST("/encrypt", handlers.EncryptString)
+	e.POST("/encrypt_file", handlers.EncryptFile)
+	e.POST("/decrypt", handlers.Decrypt)
 
 	e.Logger.Fatal(e.Start(":8081"))
 }

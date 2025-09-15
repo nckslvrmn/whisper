@@ -7,7 +7,7 @@ import (
 	"io"
 
 	"cloud.google.com/go/storage"
-	storagetypes "github.com/nckslvrmn/secure_secret_share/pkg/storage/types"
+	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
 	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 	"google.golang.org/api/option"
 )
@@ -123,4 +123,8 @@ func (g *GCSStore) DeleteEncryptedFile(secret_id string) error {
 	}
 
 	return nil
+}
+
+func (g *GCSStore) DeleteFile(secret_id string) error {
+	return g.DeleteEncryptedFile(secret_id)
 }
