@@ -85,8 +85,7 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
 
     const secret_link = `${window.location.origin}/secret/${responseData.secretId}`;
     setResp('success',
-      `<a href="${secret_link}" target="_blank">${secret_link}</a><br/>
-       Passphrase: <code>${result.passphrase}</code>`,
+      `<a href="${secret_link}" target="_blank">${secret_link}</a><br/>Passphrase: <code>${result.passphrase}</code>`,
       false);
   } catch (error) {
     console.error('Error:', error);
@@ -96,7 +95,7 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
 
 async function postSecretFile(event) {
   event.preventDefault();
-  document.getElementById('results').classList.remove('active');
+  // Don't hide the results box - we'll just update its content
 
   const file = document.getElementById('file').files[0];
   if (!file) {
@@ -119,7 +118,7 @@ async function postSecretFile(event) {
 
 async function postSecret(event) {
   event.preventDefault();
-  document.getElementById('results').classList.remove('active');
+  // Don't hide the results box - we'll just update its content
 
   const form = document.getElementById("form");
   if (!form) {
@@ -145,7 +144,7 @@ async function postSecret(event) {
 
 async function getSecret(event) {
   event.preventDefault();
-  document.getElementById('results').classList.remove('active');
+  // Don't hide the results box - we'll just update its content
 
   const formData = new FormData(document.getElementById("form"));
   const passphrase = formData.get('passphrase');
@@ -236,17 +235,30 @@ function setResp(level, content, text_resp) {
     return console.error('Required DOM elements not found');
   }
 
-  results.classList.remove('active');
-  response.className = 'alert alert-' + {
+  const newClass = 'alert alert-' + {
     alert: 'danger',
     warning: 'warning',
     processing: 'primary',
     success: 'success'
   }[level] || 'success';
-  response.setAttribute('role', 'alert');
 
-  responseBody[text_resp ? 'innerText' : 'innerHTML'] = content;
-  results.classList.add('active');
+  // If already showing an alert, just transition the content
+  if (results.classList.contains('active')) {
+    // Add a fade transition class temporarily
+    response.style.transition = 'background-color 0.3s ease, color 0.3s ease';
+    response.className = newClass;
+    response.setAttribute('role', 'alert');
+    responseBody[text_resp ? 'innerText' : 'innerHTML'] = content;
+  } else {
+    // First time showing, do the full animation
+    response.className = newClass;
+    response.setAttribute('role', 'alert');
+    responseBody[text_resp ? 'innerText' : 'innerHTML'] = content;
+    
+    requestAnimationFrame(() => {
+      results.classList.add('active');
+    });
+  }
 }
 
 function toggleEncryptionType(type) {
@@ -272,7 +284,8 @@ function toggleEncryptionType(type) {
     document.querySelector('#form textarea[name="secret"]');
   if (input) input.value = '';
 
-  document.getElementById('results').classList.remove('active');
+  const results = document.getElementById('results');
+  if (results) results.classList.remove('active');
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
