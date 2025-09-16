@@ -3,7 +3,6 @@ package utils
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"fmt"
 	"math/big"
 	"os"
 	"slices"
@@ -29,10 +28,6 @@ func LoadEnv() error {
 	GCPProjectID = os.Getenv("GCP_PROJECT_ID")
 	GCSBucket = os.Getenv("GCS_BUCKET")
 	UsesGCP = GCPProjectID != "" && FirestoreDatabase != "" && GCSBucket != ""
-
-	if !UsesAWS && !UsesGCP {
-		return fmt.Errorf("missing required ENV vars - must provide either AWS (S3_BUCKET + DYNAMO_TABLE) or Google Cloud (GCP_PROJECT_ID + FIRESTORE_DATABASE + GCS_BUCKET) configuration")
-	}
 
 	// optional ENV vars
 	AWSRegion = "us-east-1"

@@ -15,7 +15,7 @@
 - **⏱️ Self-Destructing Secrets** - Set view limits and watch secrets vanish after access
 - **📄 Text & File Support** - Share passwords, API keys, documents, or any sensitive files
 - **🚀 Lightning Fast** - Go backend with WASM-powered frontend for maximum performance
-- **☁️ Multi-Cloud Support** - Choose between AWS (DynamoDB/S3) or Google Cloud (Firestore/GCS)
+- **☁️ Multi-Storage Support** - AWS (DynamoDB/S3), Google Cloud (Firestore/GCS), or local SQLite/filesystem
 - **🔑 True Zero-Knowledge** - Server only stores encrypted data and never has access to plaintext or keys
 - **🎨 Clean Web UI** - Beautiful interface with client-side encryption
 - **🛡️ Scrypt KDF** - Hardware-resistant key derivation prevents brute force attacks
@@ -43,6 +43,34 @@ docker run -d \
   -e FIRESTORE_DATABASE=secrets-db \
   -e GCS_BUCKET=encrypted-files \
   secure_secret_share:latest
+
+# Or with local storage (SQLite + filesystem)
+docker run -d \
+  --name secure_secret_share \
+  -p 8080:8080 \
+  -v /path/to/local/storage:/data \
+  secure_secret_share:latest
+```
+
+### 🐳 Docker Compose
+
+Ready-to-use Docker Compose configurations are available in the `docs/` directory:
+
+- **AWS Backend**: [`docs/docker-compose.aws.yml`](docs/docker-compose.aws.yml) - DynamoDB + S3
+- **Google Cloud Backend**: [`docs/docker-compose.gcp.yml`](docs/docker-compose.gcp.yml) - Firestore + Cloud Storage
+- **Local Storage**: [`docs/docker-compose.local.yml`](docs/docker-compose.local.yml) - SQLite + filesystem with persistent volume
+
+> **Note**: All compose files require updating the image TAG and storage-specific configuration values before use. See the comments in each file for guidance.
+
+```bash
+# Start with AWS backend (update environment variables first)
+docker-compose -f docs/docker-compose.aws.yml up -d
+
+# Start with Google Cloud backend (update project ID and add credentials)
+docker-compose -f docs/docker-compose.gcp.yml up -d
+
+# Start with local storage (no configuration needed)
+docker-compose -f docs/docker-compose.local.yml up -d
 ```
 
 ### 🏗️ Build from Source
@@ -66,7 +94,7 @@ go build -o secure_secret_share main.go
 
 ### Environment Variables
 
-Choose your cloud provider by configuring the appropriate variables:
+Choose your storage provider by configuring the appropriate variables:
 
 #### ☁️ AWS Configuration
 | Variable | Required | Description |
@@ -82,7 +110,16 @@ Choose your cloud provider by configuring the appropriate variables:
 | `FIRESTORE_DATABASE` | ✅ | Firestore database name |
 | `GCS_BUCKET` | ✅ | Cloud Storage bucket name |
 
-> **Note**: Configure either AWS or Google Cloud variables, not both!
+#### 💾 Local Storage Configuration (Default Fallback)
+When no AWS or GCP environment variables are configured, the application automatically falls back to local storage using SQLite and the filesystem.
+
+| Volume Mount | Description |
+|--------------|-------------|
+| `/data` | Mount a local directory here to persist SQLite database and encrypted files |
+
+> **Note**: Local storage does not automatically clean up expired secrets based on TTL. Manual cleanup may be required.
+
+> **Storage Priority**: AWS → Google Cloud → Local (fallback)
 
 ## 🔑 Authentication
 

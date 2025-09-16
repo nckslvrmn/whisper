@@ -172,7 +172,6 @@ async function getSecret(event) {
       secret_id: secretId,
       passwordHash: passwordHash
     }).catch(err => {
-      if (err.message === 'Unauthorized') throw new Error('Invalid passphrase');
       if (err.message === 'NotFound') throw new Error('Secret not found or already viewed');
       throw new Error('Error retrieving the secret');
     });
@@ -254,7 +253,7 @@ function setResp(level, content, text_resp) {
     response.className = newClass;
     response.setAttribute('role', 'alert');
     responseBody[text_resp ? 'innerText' : 'innerHTML'] = content;
-    
+
     requestAnimationFrame(() => {
       results.classList.add('active');
     });

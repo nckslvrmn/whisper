@@ -1,0 +1,24 @@
+# Docker Compose configuration for Google Cloud backend
+#
+# IMPORTANT: Update the following before running:
+# - Image TAG: Replace with specific version or 'latest'
+# - GCP_PROJECT_ID: Your Google Cloud project ID
+# - FIRESTORE_DATABASE: Your Firestore database name
+# - GCS_BUCKET: Your Cloud Storage bucket name
+# - Place your service account JSON key in ./gcp-credentials/service-account.json
+
+version: '3.8'
+
+services:
+  secure-secret-share:
+    image: ghcr.io/nckslvrmn/secure_secret_share:TAG  # Replace TAG with version (e.g., v1.0.0) or 'latest'
+    ports:
+      - "8081:8081"
+    environment:
+      - GCP_PROJECT_ID=your-project-id  # Update with your GCP project ID
+      - FIRESTORE_DATABASE=secrets-db  # Update with your Firestore database name
+      - GCS_BUCKET=encrypted-files  # Update with your GCS bucket name
+      - GOOGLE_APPLICATION_CREDENTIALS=/config/service-account.json
+    volumes:
+      - ./gcp-credentials:/config:ro  # Place service-account.json in this directory
+    restart: unless-stopped

@@ -29,7 +29,7 @@ func Decrypt(c echo.Context) error {
 	secretStore := storage.GetSecretStore()
 	secretDataJson, err := secretStore.GetSecretRaw(requestData.SecretId)
 	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "secret not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Secret not found or already viewed"})
 	}
 
 	var secretData map[string]any
@@ -46,12 +46,12 @@ func Decrypt(c echo.Context) error {
 
 	// Verify password hash
 	if requestData.PasswordHash == "" {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "secret not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Secret not found or already viewed"})
 	}
 
 	storedHash, ok := secretData["passwordHash"].(string)
 	if !ok || subtle.ConstantTimeCompare([]byte(storedHash), []byte(requestData.PasswordHash)) != 1 {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "secret not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "Secret not found or already viewed"})
 	}
 
 	isFile, _ := secretData["isFile"].(bool)
