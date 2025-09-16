@@ -59,23 +59,28 @@ func SanitizeTTL(ttl_in string) int64 {
 	return time.Now().AddDate(0, 0, ttl).Unix()
 }
 
-func RandString(length int, url_safe bool) string {
-	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	if !url_safe {
-		chars = chars + "!#$%&*+-=?@_~"
+func RandString(length int, urlSafe bool) string {
+	const alphaNum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	const special = "!#$%&*+-=?@_~"
+
+	chars := alphaNum
+	if !urlSafe {
+		chars += special
 	}
+
 	result := make([]byte, length)
+	charLen := big.NewInt(int64(len(chars)))
 	for i := range result {
-		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		num, _ := rand.Int(rand.Reader, charLen)
 		result[i] = chars[num.Int64()]
 	}
 	return string(result)
 }
 
 func RandBytes(length int) []byte {
-	randomBytes := make([]byte, length)
-	rand.Read(randomBytes)
-	return randomBytes
+	b := make([]byte, length)
+	_, _ = rand.Read(b)
+	return b
 }
 
 func B64E(data []byte) string {

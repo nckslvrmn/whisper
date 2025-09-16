@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 
@@ -31,14 +32,14 @@ func Decrypt(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "secret not found"})
 	}
 
-	var secretData map[string]interface{}
+	var secretData map[string]any
 	if err := json.Unmarshal(secretDataJson, &secretData); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid secret data"})
 	}
 
 	// If only requesting salt for password hashing
 	if requestData.GetSalt {
-		return c.JSON(http.StatusOK, map[string]interface{}{
+		return c.JSON(http.StatusOK, map[string]any{
 			"salt": secretData["salt"],
 		})
 	}
@@ -49,12 +50,12 @@ func Decrypt(c echo.Context) error {
 	}
 
 	storedHash, ok := secretData["passwordHash"].(string)
-	if !ok || storedHash != requestData.PasswordHash {
+	if !ok || subtle.ConstantTimeCompare([]byte(storedHash), []byte(requestData.PasswordHash)) != 1 {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "secret not found"})
 	}
 
 	isFile, _ := secretData["isFile"].(bool)
-	response := map[string]interface{}{
+	response := map[string]any{
 		"encryptedData":     secretData["encryptedData"],
 		"encryptedMetadata": secretData["encryptedMetadata"],
 		"nonce":             secretData["nonce"],

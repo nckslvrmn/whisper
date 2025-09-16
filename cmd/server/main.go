@@ -16,8 +16,11 @@ type TemplateRegistry struct {
 	templates map[string]*template.Template
 }
 
-func (t *TemplateRegistry) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
-	return t.templates[name].Execute(w, data)
+func (t *TemplateRegistry) Render(w io.Writer, name string, data any, c echo.Context) error {
+	if tmpl, ok := t.templates[name]; ok {
+		return tmpl.Execute(w, data)
+	}
+	return echo.ErrNotFound
 }
 
 func main() {
@@ -31,17 +34,17 @@ func main() {
 		e.Logger.Fatal(err)
 	}
 
-	templates := make(map[string]*template.Template)
 	t := &TemplateRegistry{
-		templates: templates,
+		templates: map[string]*template.Template{
+			"index":  template.Must(template.ParseFiles("web/templates/layout.html", "web/templates/index.html")),
+			"secret": template.Must(template.ParseFiles("web/templates/layout.html", "web/templates/secret.html")),
+		},
 	}
-	templates["index"] = template.Must(template.ParseFiles("web/templates/layout.html", "web/templates/index.html"))
-	templates["secret"] = template.Must(template.ParseFiles("web/templates/layout.html", "web/templates/secret.html"))
 
 	// Serve static files with compression support
 	e.Static("/static", "web/static")
 	e.Renderer = t
-	
+
 	// Enable gzip compression middleware
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,

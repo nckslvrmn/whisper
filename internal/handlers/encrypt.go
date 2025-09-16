@@ -36,30 +36,7 @@ func EncryptString(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing required fields"})
 	}
 	
-	// Generate secret ID on the backend
-	secretId := utils.RandString(16, true)
-
-	secretData := map[string]interface{}{
-		"passwordHash":      data.PasswordHash,
-		"encryptedData":     data.EncryptedData,
-		"encryptedMetadata": data.EncryptedMetadata,
-		"nonce":             data.Nonce,
-		"salt":              data.Salt,
-		"header":            data.Header,
-		"viewCount":         data.ViewCount,
-		"ttl":               data.TTL,
-		"isFile":            data.IsFile,
-	}
-
-	secretStore := storage.GetSecretStore()
-	secretDataJson, _ := json.Marshal(secretData)
-	
-	if err := secretStore.StoreSecretRaw(secretId, secretDataJson, data.TTL, data.ViewCount); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "error storing secret"})
-	}
-
-	return c.JSON(http.StatusOK, map[string]string{"status": "success", "secretId": secretId})
+	return storeEncryptedData(c, &data, false)
 }
 
 func EncryptFile(c echo.Context) error {
@@ -75,10 +52,25 @@ func EncryptFile(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing required fields"})
 	}
 	
-	// Generate secret ID on the backend
-	secretId := utils.RandString(16, true)
+	if data.EncryptedFile != "" {
+		secretId := utils.RandString(16, true)
+		fileStore := storage.GetFileStore()
+		if err := fileStore.StoreEncryptedFile(secretId, []byte(data.EncryptedFile)); err != nil {
+			c.Logger().Error(err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "error storing file"})
+		}
+		return storeEncryptedDataWithId(c, &data, true, secretId)
+	}
+	
+	return storeEncryptedData(c, &data, true)
+}
 
-	secretData := map[string]interface{}{
+func storeEncryptedData(c echo.Context, data *E2EData, isFile bool) error {
+	return storeEncryptedDataWithId(c, data, isFile, utils.RandString(16, true))
+}
+
+func storeEncryptedDataWithId(c echo.Context, data *E2EData, isFile bool, secretId string) error {
+	secretData := map[string]any{
 		"passwordHash":      data.PasswordHash,
 		"encryptedData":     data.EncryptedData,
 		"encryptedMetadata": data.EncryptedMetadata,
@@ -87,20 +79,12 @@ func EncryptFile(c echo.Context) error {
 		"header":            data.Header,
 		"viewCount":         data.ViewCount,
 		"ttl":               data.TTL,
-		"isFile":            true,
+		"isFile":            isFile,
 	}
 
 	secretStore := storage.GetSecretStore()
-	
-	if data.EncryptedFile != "" {
-		fileStore := storage.GetFileStore()
-		if err := fileStore.StoreEncryptedFile(secretId, []byte(data.EncryptedFile)); err != nil {
-			c.Logger().Error(err)
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "error storing file"})
-		}
-	}
-
 	secretDataJson, _ := json.Marshal(secretData)
+	
 	if err := secretStore.StoreSecretRaw(secretId, secretDataJson, data.TTL, data.ViewCount); err != nil {
 		c.Logger().Error(err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "error storing secret"})

@@ -25,7 +25,7 @@ type DynamoStore struct {
 }
 
 func NewDynamoStore() storagetypes.SecretStore {
-	cfg, _ := config.LoadDefaultConfig(context.TODO(), config.WithRegion(utils.AWSRegion))
+	cfg, _ := config.LoadDefaultConfig(context.Background(), config.WithRegion(utils.AWSRegion))
 	return &DynamoStore{
 		client: dynamodb.NewFromConfig(cfg),
 	}
@@ -40,7 +40,7 @@ func (d *DynamoStore) StoreSecretRaw(secretId string, data []byte, ttl int64, vi
 	}
 
 	_, err := d.client.PutItem(
-		context.TODO(),
+		context.Background(),
 		&dynamodb.PutItemInput{
 			TableName: aws.String(utils.DynamoTable),
 			Item:      item,
@@ -52,7 +52,7 @@ func (d *DynamoStore) StoreSecretRaw(secretId string, data []byte, ttl int64, vi
 
 func (d *DynamoStore) GetSecretRaw(secretId string) ([]byte, error) {
 	result, err := d.client.GetItem(
-		context.TODO(),
+		context.Background(),
 		&dynamodb.GetItemInput{
 			TableName: aws.String(utils.DynamoTable),
 			Key: map[string]dynamotypes.AttributeValue{
@@ -81,7 +81,7 @@ func (d *DynamoStore) GetSecretRaw(secretId string) ([]byte, error) {
 
 func (d *DynamoStore) DeleteSecret(secretId string) error {
 	_, err := d.client.DeleteItem(
-		context.TODO(),
+		context.Background(),
 		&dynamodb.DeleteItemInput{
 			TableName: aws.String(utils.DynamoTable),
 			Key: map[string]dynamotypes.AttributeValue{
@@ -94,7 +94,7 @@ func (d *DynamoStore) DeleteSecret(secretId string) error {
 
 func (d *DynamoStore) UpdateSecretRaw(secretId string, data []byte) error {
 	_, err := d.client.UpdateItem(
-		context.TODO(),
+		context.Background(),
 		&dynamodb.UpdateItemInput{
 			TableName: aws.String(utils.DynamoTable),
 			Key: map[string]dynamotypes.AttributeValue{

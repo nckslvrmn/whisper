@@ -12,20 +12,86 @@ async function initWASM() {
     go.importObject
   );
 
-  // Start the Go program (standard Go WASM keeps running with select{})
   go.run(result.instance);
-  
-  // Wait a moment for initialization to complete
   await new Promise(resolve => setTimeout(resolve, 100));
-  
-  // wasmCrypto should be set by the WASM module
+
   wasmCrypto = window.wasmCrypto;
-  
   if (!wasmCrypto) {
     throw new Error('WASM crypto module failed to initialize');
   }
-  
+
   wasmReady = true;
+}
+
+// Helper to convert ArrayBuffer to base64
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.slice(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, chunk);
+  }
+  return btoa(binary);
+}
+
+// Helper to convert base64 to Blob
+function base64ToBlob(base64, type) {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return new Blob([bytes], { type });
+}
+
+// Helper for fetch requests
+async function postJSON(url, data) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) throw new Error('Unauthorized');
+    if (response.status === 404) throw new Error('NotFound');
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// Common encryption handler
+async function handleEncryption(encryptFn, endpoint, extraData = {}) {
+  try {
+    await initWASM();
+    setResp('processing', 'Encrypting...', true);
+
+    const result = encryptFn();
+    if (result.error) throw new Error(result.error);
+
+    const responseData = await postJSON(endpoint, {
+      passwordHash: result.passwordHash,
+      encryptedData: result.encryptedData || result.encryptedMetadata,
+      nonce: result.nonce,
+      salt: result.salt,
+      header: result.header,
+      viewCount: result.viewCount,
+      ttl: result.ttl,
+      ...extraData,
+      ...(result.encryptedFile && { encryptedFile: result.encryptedFile, encryptedMetadata: result.encryptedMetadata })
+    });
+
+    const secret_link = `${window.location.origin}/secret/${responseData.secretId}`;
+    setResp('success',
+      `<a href="${secret_link}" target="_blank">${secret_link}</a><br/>
+       Passphrase: <code>${result.passphrase}</code>`,
+      false);
+  } catch (error) {
+    console.error('Error:', error);
+    setResp('alert', `There was an error encrypting the ${extraData.isFile ? 'file' : 'secret'}`, true);
+  }
 }
 
 async function postSecretFile(event) {
@@ -34,63 +100,21 @@ async function postSecretFile(event) {
 
   const file = document.getElementById('file').files[0];
   if (!file) {
-    setResp('warning', 'Please select a file', true);
-    return;
+    return setResp('warning', 'Please select a file', true);
   }
 
-  const MAX_FILE_SIZE_MB = 5;
-  if ((file.size / (1024 * 1024)) > MAX_FILE_SIZE_MB) {
-    setResp('warning', 'File size exceeds 5MB limit', true);
-    return;
+  if ((file.size / (1024 * 1024)) > 5) {
+    return setResp('warning', 'File size exceeds 5MB limit', true);
   }
 
-  try {
-    await initWASM();
-    setResp('processing', 'Encrypting file...', true);
+  const arrayBuffer = await file.arrayBuffer();
+  const base64 = arrayBufferToBase64(arrayBuffer);
 
-    // Convert file to base64
-    const arrayBuffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
-    const base64 = btoa(String.fromCharCode(...bytes));
-
-    const result = wasmCrypto.encryptFile(base64, file.name, file.type);
-
-    if (result.error) {
-      throw new Error(result.error);
-    }
-
-    // Store encrypted file on server
-    const response = await fetch('/encrypt_file', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        passwordHash: result.passwordHash,
-        encryptedData: result.encryptedMetadata,
-        encryptedFile: result.encryptedFile,
-        encryptedMetadata: result.encryptedMetadata,
-        nonce: result.nonce,
-        salt: result.salt,
-        header: result.header,
-        viewCount: result.viewCount,
-        ttl: result.ttl,
-        isFile: true
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to store encrypted file');
-    }
-
-    const responseData = await response.json();
-    const secret_link = `${window.location.origin}/secret/${responseData.secretId}`;
-    setResp('success',
-      `<a href="${secret_link}" target="_blank">${secret_link}</a><br/>
-       Passphrase: <code>${result.passphrase}</code>`,
-      false);
-  } catch (error) {
-    console.error('Error:', error);
-    setResp('alert', 'There was an error encrypting the file', true);
-  }
+  await handleEncryption(
+    () => wasmCrypto.encryptFile(base64, file.name, file.type),
+    '/encrypt_file',
+    { isFile: true }
+  );
 }
 
 async function postSecret(event) {
@@ -99,60 +123,24 @@ async function postSecret(event) {
 
   const form = document.getElementById("form");
   if (!form) {
-    setResp('alert', 'Form not found', true);
-    return;
+    return setResp('alert', 'Form not found', true);
   }
 
-  try {
-    await initWASM();
-    setResp('processing', 'Encrypting data...', true);
+  const formData = new FormData(form);
+  const secret = formData.get('secret');
 
-    const formData = new FormData(form);
-    const secret = formData.get('secret');
-    const viewCount = formData.get('view_count') || '1';
-    const ttlDays = formData.get('ttl_days') || '7';
-
-    if (!secret) {
-      setResp('warning', 'Please enter a secret', true);
-      return;
-    }
-
-    const result = wasmCrypto.encryptText(secret, viewCount, ttlDays);
-
-    if (result.error) {
-      throw new Error(result.error);
-    }
-
-    // Store encrypted data on server
-    const response = await fetch('/encrypt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        passwordHash: result.passwordHash,
-        encryptedData: result.encryptedData,
-        nonce: result.nonce,
-        salt: result.salt,
-        header: result.header,
-        viewCount: result.viewCount,
-        ttl: result.ttl,
-        isFile: false
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to store encrypted data');
-    }
-
-    const responseData = await response.json();
-    const secret_link = `${window.location.origin}/secret/${responseData.secretId}`;
-    setResp('success',
-      `<a href="${secret_link}" target="_blank">${secret_link}</a><br/>
-       Passphrase: <code>${result.passphrase}</code>`,
-      false);
-  } catch (error) {
-    console.error('Error:', error);
-    setResp('alert', 'There was an error encrypting the secret', true);
+  if (!secret) {
+    return setResp('warning', 'Please enter a secret', true);
   }
+
+  const viewCount = formData.get('view_count') || '1';
+  const ttlDays = formData.get('ttl_days') || '7';
+
+  await handleEncryption(
+    () => wasmCrypto.encryptText(secret, viewCount, ttlDays),
+    '/encrypt',
+    { isFile: false }
+  );
 }
 
 async function getSecret(event) {
@@ -161,65 +149,37 @@ async function getSecret(event) {
 
   const formData = new FormData(document.getElementById("form"));
   const passphrase = formData.get('passphrase');
-  const secretId = window.location.pathname.split('/').slice(-1)[0];
+  const secretId = window.location.pathname.split('/').pop();
 
   if (!passphrase) {
-    setResp('warning', 'Please enter the passphrase', true);
-    return;
+    return setResp('warning', 'Please enter the passphrase', true);
   }
 
   try {
     await initWASM();
     setResp('processing', 'Decrypting...', true);
 
-    // First, get the salt from the server
-    let saltResponse = await fetch('/decrypt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        secret_id: secretId,
-        getSalt: true
-      })
+    // Get salt first
+    const saltData = await postJSON('/decrypt', {
+      secret_id: secretId,
+      getSalt: true
+    }).catch(() => {
+      throw new Error('Secret not found');
     });
 
-    if (!saltResponse.ok) {
-      setResp('warning', 'Secret not found', true);
-      return;
-    }
-
-    const saltData = await saltResponse.json();
-
-    // Generate password hash using the correct salt
+    // Generate password hash and fetch encrypted data
     const passwordHash = wasmCrypto.hashPassword(passphrase, saltData.salt);
-
-    // Now fetch the encrypted data with the correct password hash
-    let response = await fetch('/decrypt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        secret_id: secretId,
-        passwordHash: passwordHash
-      })
+    const data = await postJSON('/decrypt', {
+      secret_id: secretId,
+      passwordHash: passwordHash
+    }).catch(err => {
+      if (err.message === 'Unauthorized') throw new Error('Invalid passphrase');
+      if (err.message === 'NotFound') throw new Error('Secret not found or already viewed');
+      throw new Error('Error retrieving the secret');
     });
 
-    if (!response.ok && response.status === 401) {
-      setResp('warning', 'Invalid passphrase', true);
-      return;
-    }
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        setResp('warning', 'Secret not found or already viewed', true);
-      } else {
-        setResp('alert', 'There was an error retrieving the secret', true);
-      }
-      return;
-    }
-
-    const data = await response.json();
-
+    // Decrypt based on type
     if (data.isFile) {
-      // Decrypt file
       const result = wasmCrypto.decryptFile(
         data.encryptedFile,
         data.encryptedMetadata,
@@ -229,19 +189,10 @@ async function getSecret(event) {
         data.header
       );
 
-      if (result.error) {
-        throw new Error(result.error);
-      }
+      if (result.error) throw new Error(result.error);
 
-      // Convert base64 back to blob
-      const binaryString = atob(result.fileData);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      const blob = new Blob([bytes], { type: result.fileType });
-
-      // Create download link
+      // Download file
+      const blob = base64ToBlob(result.fileData, result.fileType);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -253,7 +204,6 @@ async function getSecret(event) {
 
       setResp('success', `File "${result.fileName}" downloaded successfully`, true);
     } else {
-      // Decrypt text
       const result = wasmCrypto.decryptText(
         data.encryptedData,
         passphrase,
@@ -262,17 +212,18 @@ async function getSecret(event) {
         data.header
       );
 
-      if (result.error) {
-        throw new Error(result.error);
-      }
-
+      if (result.error) throw new Error(result.error);
       setResp('success', result.data, true);
     }
 
     document.getElementById('form').remove();
   } catch (error) {
     console.error('Error:', error);
-    setResp('alert', 'There was an error decrypting the secret', true);
+    const message = error.message.includes('passphrase') ? 'Invalid passphrase' :
+      error.message.includes('not found') ? error.message :
+        'There was an error decrypting the secret';
+    setResp(error.message.includes('passphrase') || error.message.includes('not found') ? 'warning' : 'alert',
+      message, true);
   }
 }
 
@@ -282,71 +233,49 @@ function setResp(level, content, text_resp) {
   const responseBody = document.getElementById('response_body');
 
   if (!results || !response || !responseBody) {
-    console.error('Required DOM elements not found');
-    return;
+    return console.error('Required DOM elements not found');
   }
 
   results.classList.remove('active');
-  response.classList.remove('alert', 'alert-danger', 'alert-warning', 'alert-primary');
-  response.removeAttribute('role');
-
-  const alertLevels = {
+  response.className = 'alert alert-' + {
     alert: 'danger',
     warning: 'warning',
     processing: 'primary',
     success: 'success'
-  };
-
-  const alertLevel = alertLevels[level] || 'success';
-  response.classList.add('alert', `alert-${alertLevel}`);
+  }[level] || 'success';
   response.setAttribute('role', 'alert');
 
-  if (text_resp) {
-    responseBody.innerText = content;
-  } else {
-    responseBody.innerHTML = content;
-  }
-
+  responseBody[text_resp ? 'innerText' : 'innerHTML'] = content;
   results.classList.add('active');
 }
 
 function toggleEncryptionType(type) {
-  const textForm = document.getElementById('textForm');
-  const fileForm = document.getElementById('fileForm');
-  const textToggle = document.getElementById('textToggle');
-  const fileToggle = document.getElementById('fileToggle');
+  const elements = {
+    textForm: document.getElementById('textForm'),
+    fileForm: document.getElementById('fileForm'),
+    textToggle: document.getElementById('textToggle'),
+    fileToggle: document.getElementById('fileToggle')
+  };
 
-  if (type === 'text') {
-    textForm.style.display = 'block';
-    fileForm.style.display = 'none';
-    textToggle.classList.remove('btn-outline-primary');
-    textToggle.classList.add('btn-primary');
-    fileToggle.classList.remove('btn-primary');
-    fileToggle.classList.add('btn-outline-primary');
+  const isText = type === 'text';
+  elements.textForm.style.display = isText ? 'block' : 'none';
+  elements.fileForm.style.display = isText ? 'none' : 'block';
 
-    const fileInput = document.getElementById('file');
-    if (fileInput) {
-      fileInput.value = '';
-    }
-  } else {
-    textForm.style.display = 'none';
-    fileForm.style.display = 'block';
-    textToggle.classList.remove('btn-primary');
-    textToggle.classList.add('btn-outline-primary');
-    fileToggle.classList.remove('btn-outline-primary');
-    fileToggle.classList.add('btn-primary');
+  elements.textToggle.classList.toggle('btn-primary', isText);
+  elements.textToggle.classList.toggle('btn-outline-primary', !isText);
+  elements.fileToggle.classList.toggle('btn-primary', !isText);
+  elements.fileToggle.classList.toggle('btn-outline-primary', isText);
 
-    const textArea = document.querySelector('#form textarea[name="secret"]');
-    if (textArea) {
-      textArea.value = '';
-    }
-  }
+  // Clear inputs
+  const input = isText ?
+    document.getElementById('file') :
+    document.querySelector('#form textarea[name="secret"]');
+  if (input) input.value = '';
 
   document.getElementById('results').classList.remove('active');
 }
 
-window.addEventListener('DOMContentLoaded', async (event) => {
-  // Initialize WASM on page load
+window.addEventListener('DOMContentLoaded', async () => {
   try {
     await initWASM();
     console.log('WASM crypto module loaded successfully');
@@ -354,10 +283,8 @@ window.addEventListener('DOMContentLoaded', async (event) => {
     console.error('Failed to load WASM module:', error);
   }
 
-  // Check URL params for file mode
   const urlParams = new URLSearchParams(window.location.search);
-  const type = urlParams.get('type');
-  if (type === 'file') {
+  if (urlParams.get('type') === 'file') {
     toggleEncryptionType('file');
   }
 });
