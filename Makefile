@@ -1,10 +1,11 @@
-.PHONY: all wasm server clean docker
+.PHONY: all clean deps wasm server clean
 
-# Build everything
-all: clean wasm server docker
+all: clean deps wasm server
 
-# Build WASM with standard Go (TinyGo has issues with js.FuncOf callbacks)
-wasm:
+deps:
+	@go mod download
+
+wasm: deps
 	@echo "Building WASM module with standard Go..."
 	GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o web/static/crypto.wasm cmd/wasm/main.go
 	@echo "Copying Go's wasm_exec.js..."
@@ -15,17 +16,12 @@ wasm:
 	fi
 	@echo "WASM build complete. Size: $$(ls -lh web/static/crypto.wasm | awk '{print $$5}')"
 
-# Build server
 server:
 	@echo "Building server..."
 	@go build -o secure_secret_share cmd/server/main.go
 	@echo "Server build complete"
 
-# Build Docker image
-docker:
-	docker build -t secure-secret-share .
-
-# Clean build artifacts
 clean:
 	rm -f secure_secret_share
 	rm -f web/static/crypto.wasm*
+	rm -f web/static/wasm_exec.js
