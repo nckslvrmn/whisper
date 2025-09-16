@@ -5,9 +5,19 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
 )
+
+
+// Checks if `secretId` is a safe single file name (no path traversal, separators, or "..")
+func isValidSecretId(secretId string) bool {
+	return !strings.Contains(secretId, "/") &&
+	       !strings.Contains(secretId, "\\") &&
+	       !strings.Contains(secretId, "..") &&
+	       secretId != ""
+}
 
 type LocalFileStore struct {
 	dataDir string
@@ -23,6 +33,9 @@ func NewLocalFileStore(dataDir string) storagetypes.FileStore {
 	log.Printf("Local file store initialized at %s", filesDir)
 	return &LocalFileStore{
 		dataDir: filesDir,
+	if !isValidSecretId(secretId) {
+		return fmt.Errorf("invalid secretId")
+	}
 	}
 }
 
@@ -33,6 +46,9 @@ func (l *LocalFileStore) StoreEncryptedFile(secretId string, data []byte) error 
 		return fmt.Errorf("failed to store encrypted file: %w", err)
 	}
 
+	if !isValidSecretId(secretId) {
+		return nil, fmt.Errorf("invalid secretId")
+	}
 	return nil
 }
 
@@ -47,6 +63,9 @@ func (l *LocalFileStore) GetEncryptedFile(secretId string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to read encrypted file: %w", err)
 	}
 
+	if !isValidSecretId(secretId) {
+		return fmt.Errorf("invalid secretId")
+	}
 	return data, nil
 }
 
