@@ -1,0 +1,32 @@
+# Build artifacts
+secure_secret_share
+*.exe
+
+# WASM files (generated during build)
+web/static/crypto.wasm
+web/static/crypto.wasm.gz
+web/static/crypto.wasm.br
+
+# Go build cache
+*.test
+*.out
+vendor/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.temp

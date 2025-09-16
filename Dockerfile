@@ -1,16 +1,12 @@
 FROM public.ecr.aws/docker/library/golang:alpine AS base
-RUN apk add --no-cache ca-certificates
-
-FROM base AS build
 COPY . /src
 WORKDIR /src
-RUN go mod download && go build main.go
+RUN apk add --no-cache brotli gzip make && make
 
-FROM alpine:latest AS app
-COPY --from=base /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY views /views/
-COPY static /static/
-COPY --from=build --chmod=0755 /src/main /main
+FROM public.ecr.aws/docker/library/alpine:latest
+RUN apk add --no-cache ca-certificates
+COPY --from=base /src/web /web/
+COPY --from=base --chmod=0755 /src/secure_secret_share /secure_secret_share
 
 EXPOSE 8081
-ENTRYPOINT ["/main"]
+ENTRYPOINT ["/secure_secret_share"]

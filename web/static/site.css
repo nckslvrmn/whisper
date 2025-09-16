@@ -22,9 +22,10 @@ body {
 
 body {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 1rem;
+  padding-top: 10vh;
   line-height: 1.6;
 }
 
@@ -40,6 +41,8 @@ body {
   box-shadow: none;
   width: 100%;
   border: none;
+  position: relative;
+  transition: transform 0.3s ease;
 }
 
 .form-signin .form-group {
@@ -212,27 +215,39 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 }
 
 #results {
-  opacity: 0;
-  transform: translateY(5px);
-  transition: all 0.3s ease;
-  border-radius: 0.375rem;
-  display: none;
   width: 100%;
-  padding: 0 1rem;
   max-width: 900px;
-  margin: 1rem auto;
+  margin: 0 auto;
+  background: transparent;
+  padding: 0 1rem;
+  box-sizing: border-box;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease, margin 0.4s ease;
 }
 
 #results.active {
+  max-height: 500px;
+  margin: 1rem auto;
+  overflow: visible;
+}
+
+#results .alert {
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  width: 100%;
+  margin: 0;
+}
+
+#results.active .alert {
   opacity: 1;
   transform: translateY(0);
-  display: block;
 }
 
 #response {
   margin: 0;
   height: 100%;
-  background: var(--background);
 }
 
 #response_body {
@@ -266,19 +281,26 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 
 .alert-success {
   background-color: var(--green) !important;
-
 }
 
-.alert-warning #response_body {
-  color: var(--bs-success-text-emphasis);
+.alert-success #response_body {
+  color: var(--background);
+}
+
+.alert-primary {
+  background-color: var(--purple) !important;
+}
+
+.alert-primary #response_body {
+  color: var(--foreground);
 }
 
 .alert-warning {
-  background: var(--bs-warning) !important;
+  background: var(--yellow) !important;
 }
 
 .alert-warning #response_body {
-  color: var(--bs-warning-text-emphasis);
+  color: var(--background);
 }
 
 .alert-danger {
@@ -286,5 +308,5 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 }
 
 .alert-danger #response_body {
-  color: var(--bs-danger-text-emphasis);
+  color: var(--foreground);
 }

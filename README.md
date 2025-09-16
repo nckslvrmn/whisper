@@ -1,23 +1,25 @@
 # 🔐 S³: Secure Secret Share
 
-> A blazing-fast, ephemeral secret sharing service built with Go. Share sensitive information securely with military-grade encryption that self-destructs after viewing.
+> End-to-end encrypted secret sharing service with WebAssembly-powered client-side encryption. Share sensitive information with true zero-knowledge architecture - your secrets are encrypted in your browser before ever leaving your device.
 
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.23-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/github/license/nckslvrmn/secure_secret_share)](LICENSE)
 [![Security](https://img.shields.io/badge/encryption-AES--256--GCM-green?logo=shield)](https://en.wikipedia.org/wiki/Galois/Counter_Mode)
 [![KDF](https://img.shields.io/badge/KDF-scrypt-blue)](https://en.wikipedia.org/wiki/Scrypt)
+[![WASM](https://img.shields.io/badge/WASM-Enabled-orange?logo=webassembly)](https://webassembly.org/)
 
 ## ✨ Features
 
+- **🔐 True End-to-End Encryption** - All encryption/decryption happens in your browser via WebAssembly
 - **🔒 Military-Grade Encryption** - AES-256-GCM ensures confidentiality, integrity, and authenticity
 - **⏱️ Self-Destructing Secrets** - Set view limits and watch secrets vanish after access
 - **📄 Text & File Support** - Share passwords, API keys, documents, or any sensitive files
-- **🚀 Lightning Fast** - Built with Go for maximum performance
+- **🚀 Lightning Fast** - Go backend with WASM-powered frontend for maximum performance
 - **☁️ Multi-Cloud Support** - Choose between AWS (DynamoDB/S3) or Google Cloud (Firestore/GCS)
-- **🔑 Zero-Knowledge** - Server never sees unencrypted data
-- **🎯 Simple API** - RESTful endpoints for easy integration
-- **🎨 Clean Web UI** - Beautiful interface for non-technical users
+- **🔑 True Zero-Knowledge** - Server only stores encrypted data and never has access to plaintext or keys
+- **🎨 Clean Web UI** - Beautiful interface with client-side encryption
 - **🛡️ Scrypt KDF** - Hardware-resistant key derivation prevents brute force attacks
+- **🌐 No Server Trust Required** - Encryption keys never leave your browser
 
 ## 🚀 Quick Start
 
@@ -49,6 +51,9 @@ docker run -d \
 # Clone the repository
 git clone https://github.com/nckslvrmn/secure_secret_share.git
 cd secure_secret_share
+
+# Build the WASM module
+make wasm
 
 # Build the Docker image
 docker build -t secure_secret_share .
@@ -126,72 +131,50 @@ Required roles:
 - **Firestore**: `roles/datastore.user`
 - **Cloud Storage**: `roles/storage.objectAdmin`
 
-## 📡 API Usage
+## 🌐 How It Works
 
-### 🔐 Encrypt Text Secret
+### End-to-End Encryption Flow
 
-```bash
-curl -X POST https://your-domain/encrypt \
-  -H "Content-Type: application/json" \
-  -d '{
-    "secret": "my-super-secret-password",
-    "view_count": 1
-  }'
+1. **Client-side Encryption**: When you submit a secret through the web interface:
+   - The WASM module generates a cryptographically secure passphrase
+   - Your data is encrypted using AES-256-GCM entirely in your browser
+   - Only the encrypted data is sent to the server
 
-# Response:
-{
-  "secret_id": "HrVfOn1aoqKHeRKi",
-  "passphrase": "iT95_B9p9PSMcP-hH9OGS81w9FZVTEpf"
-}
-```
+2. **Server Storage**: The backend:
+   - Receives only encrypted data, never plaintext
+   - Stores the encrypted blob with a unique ID
+   - Has no ability to decrypt your data
 
-### 🔓 Decrypt Text Secret
+3. **Decryption**: When retrieving a secret:
+   - The encrypted data is fetched from the server
+   - Decryption happens entirely in your browser using the passphrase
+   - The server never sees the passphrase or decrypted content
 
-```bash
-curl -X POST https://your-domain/decrypt \
-  -H "Content-Type: application/json" \
-  -d '{
-    "secret_id": "HrVfOn1aoqKHeRKi",
-    "passphrase": "iT95_B9p9PSMcP-hH9OGS81w9FZVTEpf"
-  }'
+### WebAssembly Module
 
-# Response:
-{
-  "data": "my-super-secret-password"
-}
-```
+The WASM module (`crypto.wasm`) provides:
+- `encryptText`: Encrypts text secrets with configurable view counts and TTL
+- `encryptFile`: Encrypts files with metadata
+- `decryptText`: Decrypts text secrets
+- `decryptFile`: Decrypts files and metadata
+- `hashPassword`: Creates secure password hashes
 
-### 📎 Encrypt File
-
-```bash
-curl -X POST https://your-domain/encrypt_file \
-  -F "file=@/path/to/secret.pdf;type=application/pdf"
-
-# Response:
-{
-  "secret_id": "97tfNQQBAl0w2zNE",
-  "passphrase": "CPIX4PeLALaLaNLVFM~oNjM!N&bjZ377"
-}
-```
-
-### 📥 Decrypt File
-
-```bash
-curl -OJ -X POST https://your-domain/decrypt \
-  -H "Content-Type: application/json" \
-  -d '{
-    "secret_id": "97tfNQQBAl0w2zNE",
-    "passphrase": "CPIX4PeLALaLaNLVFM~oNjM!N&bjZ377"
-  }'
-
-# File will be downloaded with original filename
-```
+All cryptographic operations use:
+- **AES-256-GCM** for authenticated encryption
+- **Scrypt** for key derivation (N=2^15, r=8, p=1)
+- **Cryptographically secure random** for all nonces, salts, and passphrases
 
 ## 🛡️ Security Architecture
 
-### 🔐 Encryption Details
+### 🔐 End-to-End Encryption Details
 
-**S³** implements defense-in-depth security:
+**S³** implements true end-to-end encryption with WebAssembly:
+
+#### Client-Side Encryption (WASM)
+- **Location**: All encryption happens in your browser via WebAssembly
+- **Keys**: Generated client-side, never transmitted to server
+- **Passphrase**: 32-character random string generated in browser
+- **Zero-Trust**: Server cannot decrypt data even if compromised
 
 #### AES-256-GCM
 - **Algorithm**: Advanced Encryption Standard with 256-bit keys
@@ -202,11 +185,12 @@ curl -OJ -X POST https://your-domain/decrypt \
 #### Scrypt Key Derivation
 - **Purpose**: Converts passphrases into encryption keys
 - **Design**: Memory-hard function resistant to ASIC/GPU attacks
-- **Parameters**: Tuned for 100ms+ derivation time on modern hardware
+- **Parameters**: N=2^15, r=8, p=1 (32MB memory requirement)
 - **Protection**: Makes brute-force attacks economically infeasible
 
 #### Cryptographic Randomness
-- **Source**: `/dev/urandom` via Go's `crypto/rand`
+- **Source**: Browser's Web Crypto API for client-side operations
+- **Server**: `/dev/urandom` via Go's `crypto/rand` for IDs only
 - **Usage**: Secret IDs, passphrases, salts, and nonces
 - **Entropy**: Cryptographically secure for all security operations
 
@@ -282,7 +266,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Built with [Go](https://golang.org/) and [Echo Framework](https://echo.labstack.com/)
-- Encryption powered by Go's [crypto](https://pkg.go.dev/crypto) package
+- Client-side encryption via [WebAssembly](https://webassembly.org/)
+- Encryption powered by Go's [crypto](https://pkg.go.dev/crypto) package compiled to WASM
 - Cloud storage via [AWS SDK](https://aws.github.io/aws-sdk-go-v2/) and [Google Cloud SDK](https://cloud.google.com/go)
 - UI components from [Bootstrap](https://getbootstrap.com/)
 

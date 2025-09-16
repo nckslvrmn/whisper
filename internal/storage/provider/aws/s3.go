@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	storagetypes "github.com/nckslvrmn/secure_secret_share/pkg/storage/types"
+	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
 	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
@@ -75,4 +75,8 @@ func (s *S3Store) DeleteEncryptedFile(secret_id string) error {
 	}
 
 	return nil
+}
+
+func (s *S3Store) DeleteFile(secret_id string) error {
+	return s.DeleteEncryptedFile(secret_id)
 }
