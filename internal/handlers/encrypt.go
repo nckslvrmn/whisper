@@ -25,7 +25,7 @@ type E2EData struct {
 
 func EncryptString(c echo.Context) error {
 	var data E2EData
-	
+
 	err := c.Bind(&data)
 	if err != nil {
 		c.Logger().Error(err)
@@ -35,13 +35,13 @@ func EncryptString(c echo.Context) error {
 	if data.PasswordHash == "" || data.EncryptedData == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing required fields"})
 	}
-	
+
 	return storeEncryptedData(c, &data, false)
 }
 
 func EncryptFile(c echo.Context) error {
 	var data E2EData
-	
+
 	err := c.Bind(&data)
 	if err != nil {
 		c.Logger().Error(err)
@@ -51,7 +51,7 @@ func EncryptFile(c echo.Context) error {
 	if data.PasswordHash == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing required fields"})
 	}
-	
+
 	if data.EncryptedFile != "" {
 		secretId := utils.RandString(16, true)
 		fileStore := storage.GetFileStore()
@@ -61,7 +61,7 @@ func EncryptFile(c echo.Context) error {
 		}
 		return storeEncryptedDataWithId(c, &data, true, secretId)
 	}
-	
+
 	return storeEncryptedData(c, &data, true)
 }
 
@@ -84,7 +84,7 @@ func storeEncryptedDataWithId(c echo.Context, data *E2EData, isFile bool, secret
 
 	secretStore := storage.GetSecretStore()
 	secretDataJson, _ := json.Marshal(secretData)
-	
+
 	if err := secretStore.StoreSecretRaw(secretId, secretDataJson, data.TTL, data.ViewCount); err != nil {
 		c.Logger().Error(err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "error storing secret"})
@@ -92,4 +92,3 @@ func storeEncryptedDataWithId(c echo.Context, data *E2EData, isFile bool, secret
 
 	return c.JSON(http.StatusOK, map[string]string{"status": "success", "secretId": secretId})
 }
-

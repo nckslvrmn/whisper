@@ -2,9 +2,9 @@ package storage
 
 import (
 	"fmt"
+	"log"
 	"os"
 
-	"github.com/nckslvrmn/secure_secret_share/internal/storage/mock"
 	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/aws"
 	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/gcp"
 	"github.com/nckslvrmn/secure_secret_share/internal/storage/types"
@@ -18,6 +18,7 @@ func Initialize() error {
 	// Check for AWS configuration
 	if os.Getenv("DYNAMO_TABLE") != "" && os.Getenv("S3_BUCKET") != "" {
 		// Use AWS storage
+		log.Println("Initializing AWS storage providers (DynamoDB and S3)")
 		secretStore = aws.NewDynamoStore()
 		fileStore = aws.NewS3Store()
 		return nil
@@ -26,6 +27,7 @@ func Initialize() error {
 	// Check for GCP configuration
 	if os.Getenv("FIRESTORE_DATABASE") != "" && os.Getenv("GCS_BUCKET") != "" {
 		// Use GCP storage
+		log.Println("Initializing GCP storage providers (Firestore and GCS)")
 		var err error
 		secretStore, err = gcp.NewFirestoreStore()
 		if err != nil {
@@ -35,10 +37,8 @@ func Initialize() error {
 		return nil
 	}
 
-	// Fall back to mock storage for development
-	secretStore = mock.NewMockSecretStore()
-	fileStore = mock.NewMockFileStore()
-	return nil
+	// No valid storage configuration found
+	return fmt.Errorf("no valid storage configuration found: please configure either AWS (DYNAMO_TABLE and S3_BUCKET) or GCP (FIRESTORE_DATABASE and GCS_BUCKET) environment variables")
 }
 
 // GetSecretStore returns the configured secret store

@@ -1,3 +1,6 @@
+//go:build wasm
+// +build wasm
+
 package main
 
 import (
@@ -21,7 +24,7 @@ func main() {
 		"decryptFile":  js.FuncOf(decryptFileFunc),
 		"hashPassword": js.FuncOf(hashPasswordFunc),
 	})
-	
+
 	// Keep the program running for standard Go WASM
 	select {}
 }
