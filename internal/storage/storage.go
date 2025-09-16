@@ -7,6 +7,7 @@ import (
 
 	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/aws"
 	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/gcp"
+	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/local"
 	"github.com/nckslvrmn/secure_secret_share/internal/storage/types"
 )
 
@@ -37,8 +38,17 @@ func Initialize() error {
 		return nil
 	}
 
-	// No valid storage configuration found
-	return fmt.Errorf("no valid storage configuration found: please configure either AWS (DYNAMO_TABLE and S3_BUCKET) or GCP (FIRESTORE_DATABASE and GCS_BUCKET) environment variables")
+	// Fall back to local storage
+	log.Println("No AWS or GCP configuration found, using local storage providers (SQLite and file system)")
+	dataDir := "/data"
+
+	var err error
+	secretStore, err = local.NewSQLiteStore(dataDir)
+	if err != nil {
+		return fmt.Errorf("failed to initialize SQLite store: %w", err)
+	}
+	fileStore = local.NewLocalFileStore(dataDir)
+	return nil
 }
 
 // GetSecretStore returns the configured secret store
