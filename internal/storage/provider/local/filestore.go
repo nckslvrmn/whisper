@@ -10,7 +10,6 @@ import (
 	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
 )
 
-// Checks if `secretId` is a safe single file name (no path traversal, separators, or "..")
 func isValidSecretId(secretId string) bool {
 	return !strings.Contains(secretId, "/") &&
 		!strings.Contains(secretId, "\\") &&

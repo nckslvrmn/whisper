@@ -18,43 +18,51 @@ func Decrypt(c echo.Context) error {
 
 	err := c.Bind(&requestData)
 	if err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+		return errorResponse(c, http.StatusBadRequest, "invalid request")
 	}
 
 	if requestData.SecretId == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing secret_id"})
+		return errorResponse(c, http.StatusBadRequest, "missing secret_id")
+	}
+
+	if !validateSecretID(requestData.SecretId) {
+		return errorResponse(c, http.StatusBadRequest, "invalid secret_id format")
 	}
 
 	secretStore := storage.GetSecretStore()
 	secretDataJson, err := secretStore.GetSecretRaw(requestData.SecretId)
 	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Secret not found or already viewed"})
+		return errorResponse(c, http.StatusNotFound, "Secret not found or already viewed")
 	}
 
 	var secretData map[string]any
 	if err := json.Unmarshal(secretDataJson, &secretData); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid secret data"})
+		return errorResponse(c, http.StatusInternalServerError, "invalid secret data")
 	}
 
-	// If only requesting salt for password hashing
 	if requestData.GetSalt {
 		return c.JSON(http.StatusOK, map[string]any{
 			"salt": secretData["salt"],
 		})
 	}
 
-	// Verify password hash
 	if requestData.PasswordHash == "" {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Secret not found or already viewed"})
+		return errorResponse(c, http.StatusNotFound, "Secret not found or already viewed")
+	}
+
+	if !validatePasswordHash(requestData.PasswordHash) {
+		return errorResponse(c, http.StatusBadRequest, "invalid password hash format")
 	}
 
 	storedHash, ok := secretData["passwordHash"].(string)
 	if !ok || subtle.ConstantTimeCompare([]byte(storedHash), []byte(requestData.PasswordHash)) != 1 {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Secret not found or already viewed"})
+		return errorResponse(c, http.StatusNotFound, "Secret not found or already viewed")
 	}
 
-	isFile, _ := secretData["isFile"].(bool)
+	isFile, ok := secretData["isFile"].(bool)
+	if !ok {
+		isFile = false
+	}
 	response := map[string]any{
 		"encryptedData":     secretData["encryptedData"],
 		"encryptedMetadata": secretData["encryptedMetadata"],
@@ -72,8 +80,10 @@ func Decrypt(c echo.Context) error {
 		}
 	}
 
-	// Handle view count
-	viewCount, _ := secretData["viewCount"].(float64)
+	viewCount, ok := secretData["viewCount"].(float64)
+	if !ok {
+		viewCount = 1
+	}
 	if viewCount > 0 {
 		viewCount--
 		if viewCount == 0 {
@@ -84,7 +94,10 @@ func Decrypt(c echo.Context) error {
 			}
 		} else {
 			secretData["viewCount"] = viewCount
-			updatedJson, _ := json.Marshal(secretData)
+			updatedJson, err := json.Marshal(secretData)
+			if err != nil {
+				return errorResponse(c, http.StatusInternalServerError, "error updating secret")
+			}
 			secretStore.UpdateSecretRaw(requestData.SecretId, updatedJson)
 		}
 	}

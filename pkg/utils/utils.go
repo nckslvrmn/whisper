@@ -4,55 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"math/big"
-	"os"
 	"slices"
 	"strconv"
 	"time"
 )
-
-var AWSRegion string
-var DynamoTable string
-var FirestoreDatabase string
-var GCPProjectID string
-var GCSBucket string
-var S3Bucket string
-var UsesAWS bool
-var UsesGCP bool
-
-func LoadEnv() error {
-	DynamoTable = os.Getenv("DYNAMO_TABLE")
-	S3Bucket = os.Getenv("S3_BUCKET")
-	UsesAWS = S3Bucket != "" && DynamoTable != ""
-
-	FirestoreDatabase = os.Getenv("FIRESTORE_DATABASE")
-	GCPProjectID = os.Getenv("GCP_PROJECT_ID")
-	GCSBucket = os.Getenv("GCS_BUCKET")
-	UsesGCP = GCPProjectID != "" && FirestoreDatabase != "" && GCSBucket != ""
-
-	// optional ENV vars
-	AWSRegion = "us-east-1"
-	if regionValue, regionExists := os.LookupEnv("AWS_REGION"); regionExists {
-		AWSRegion = regionValue
-	}
-
-	return nil
-}
-
-func SanitizeViewCount(view_count string) int {
-	vc, err := strconv.Atoi(view_count)
-	if err != nil || vc <= 0 || vc >= 10 {
-		return 1
-	}
-	return vc
-}
-
-func SanitizeTTL(ttl_in string) int64 {
-	ttl, _ := strconv.Atoi(ttl_in)
-	if !slices.Contains([]int{1, 3, 7, 14, 30}, ttl) {
-		ttl = 7
-	}
-	return time.Now().AddDate(0, 0, ttl).Unix()
-}
 
 func RandString(length int, urlSafe bool) string {
 	const alphaNum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -84,4 +39,20 @@ func B64E(data []byte) string {
 
 func B64D(data string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(data)
+}
+
+func SanitizeViewCount(viewCount string) int {
+	vc, err := strconv.Atoi(viewCount)
+	if err != nil || vc <= 0 || vc >= 10 {
+		return 1
+	}
+	return vc
+}
+
+func SanitizeTTL(ttlIn string) int64 {
+	ttl, _ := strconv.Atoi(ttlIn)
+	if !slices.Contains([]int{1, 3, 7, 14, 30}, ttl) {
+		ttl = 7
+	}
+	return time.Now().AddDate(0, 0, ttl).Unix()
 }

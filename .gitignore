@@ -6,6 +6,7 @@ secure_secret_share
 web/static/crypto.wasm
 web/static/crypto.wasm.gz
 web/static/crypto.wasm.br
+web/static/wasm_exec.js
 
 # Go build cache
 *.test
