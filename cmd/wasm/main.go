@@ -16,8 +16,20 @@ import (
 	"golang.org/x/crypto/scrypt"
 )
 
+const (
+	NonceSize        = 12
+	SaltSize         = 16
+	HeaderSize       = 16
+	PassphraseLength = 32
+	KeySize          = 32
+	GCMTagSize       = 16
+	ScryptN          = 32768
+	ScryptR          = 8
+	ScryptP          = 1
+)
+
 func main() {
-	js.Global().Set("wasmCrypto", map[string]interface{}{
+	js.Global().Set("wasmCrypto", map[string]any{
 		"encryptText":  js.FuncOf(encryptTextFunc),
 		"encryptFile":  js.FuncOf(encryptFileFunc),
 		"decryptText":  js.FuncOf(decryptTextFunc),
@@ -29,9 +41,9 @@ func main() {
 	select {}
 }
 
-func encryptTextFunc(this js.Value, args []js.Value) interface{} {
+func encryptTextFunc(this js.Value, args []js.Value) any {
 	if len(args) < 3 {
-		return map[string]interface{}{
+		return map[string]any{
 			"error": "Missing arguments: text, viewCount, ttlDays",
 		}
 	}
@@ -46,12 +58,12 @@ func encryptTextFunc(this js.Value, args []js.Value) interface{} {
 
 	encryptedData, err := secret.Encrypt([]byte(text))
 	if err != nil {
-		return map[string]interface{}{"error": err.Error()}
+		return map[string]any{"error": err.Error()}
 	}
 
 	passwordHash := hashPasswordString(secret.Passphrase, secret.Salt)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"passphrase":    secret.Passphrase,
 		"encryptedData": utils.B64E(encryptedData),
 		"nonce":         utils.B64E(secret.Nonce),
@@ -63,9 +75,9 @@ func encryptTextFunc(this js.Value, args []js.Value) interface{} {
 	}
 }
 
-func encryptFileFunc(this js.Value, args []js.Value) interface{} {
+func encryptFileFunc(this js.Value, args []js.Value) any {
 	if len(args) < 3 {
-		return map[string]interface{}{
+		return map[string]any{
 			"error": "Missing arguments: fileData, fileName, fileType",
 		}
 	}
@@ -76,7 +88,7 @@ func encryptFileFunc(this js.Value, args []js.Value) interface{} {
 
 	fileData, err := base64.StdEncoding.DecodeString(fileDataStr)
 	if err != nil {
-		return map[string]interface{}{"error": "Invalid file data: " + err.Error()}
+		return map[string]any{"error": "Invalid file data: " + err.Error()}
 	}
 
 	secret := NewSecret()
@@ -85,7 +97,7 @@ func encryptFileFunc(this js.Value, args []js.Value) interface{} {
 
 	encryptedFile, err := secret.Encrypt(fileData)
 	if err != nil {
-		return map[string]interface{}{"error": err.Error()}
+		return map[string]any{"error": err.Error()}
 	}
 
 	metadata := map[string]string{
@@ -95,12 +107,12 @@ func encryptFileFunc(this js.Value, args []js.Value) interface{} {
 	metadataJson, _ := json.Marshal(metadata)
 	encryptedMetadata, err := secret.Encrypt(metadataJson)
 	if err != nil {
-		return map[string]interface{}{"error": err.Error()}
+		return map[string]any{"error": err.Error()}
 	}
 
 	passwordHash := hashPasswordString(secret.Passphrase, secret.Salt)
 
-	return map[string]interface{}{
+	return map[string]any{
 		"passphrase":        secret.Passphrase,
 		"encryptedFile":     utils.B64E(encryptedFile),
 		"encryptedMetadata": utils.B64E(encryptedMetadata),
@@ -113,16 +125,16 @@ func encryptFileFunc(this js.Value, args []js.Value) interface{} {
 	}
 }
 
-func decryptTextFunc(this js.Value, args []js.Value) interface{} {
+func decryptTextFunc(this js.Value, args []js.Value) any {
 	if len(args) < 5 {
-		return map[string]interface{}{
+		return map[string]any{
 			"error": "Missing arguments: encryptedData, passphrase, nonce, salt, header",
 		}
 	}
 
 	encryptedData, err := utils.B64D(args[0].String())
 	if err != nil {
-		return map[string]interface{}{"error": "Invalid encrypted data"}
+		return map[string]any{"error": "Invalid encrypted data"}
 	}
 
 	passphrase := args[1].String()
@@ -140,29 +152,29 @@ func decryptTextFunc(this js.Value, args []js.Value) interface{} {
 
 	decryptedData, err := secret.Decrypt()
 	if err != nil {
-		return map[string]interface{}{"error": "Decryption failed: " + err.Error()}
+		return map[string]any{"error": "Decryption failed: " + err.Error()}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"data": string(decryptedData),
 	}
 }
 
-func decryptFileFunc(this js.Value, args []js.Value) interface{} {
+func decryptFileFunc(this js.Value, args []js.Value) any {
 	if len(args) < 6 {
-		return map[string]interface{}{
+		return map[string]any{
 			"error": "Missing arguments: encryptedFile, encryptedMetadata, passphrase, nonce, salt, header",
 		}
 	}
 
 	encryptedFile, err := utils.B64D(args[0].String())
 	if err != nil {
-		return map[string]interface{}{"error": "Invalid encrypted file"}
+		return map[string]any{"error": "Invalid encrypted file"}
 	}
 
 	encryptedMetadata, err := utils.B64D(args[1].String())
 	if err != nil {
-		return map[string]interface{}{"error": "Invalid encrypted metadata"}
+		return map[string]any{"error": "Invalid encrypted metadata"}
 	}
 
 	passphrase := args[2].String()
@@ -180,30 +192,30 @@ func decryptFileFunc(this js.Value, args []js.Value) interface{} {
 
 	metadataBytes, err := secret.Decrypt()
 	if err != nil {
-		return map[string]interface{}{"error": "Metadata decryption failed: " + err.Error()}
+		return map[string]any{"error": "Metadata decryption failed: " + err.Error()}
 	}
 
 	var metadata map[string]string
 	if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
-		return map[string]interface{}{"error": "Invalid metadata"}
+		return map[string]any{"error": "Invalid metadata"}
 	}
 
 	secret.Data = encryptedFile
 	fileData, err := secret.Decrypt()
 	if err != nil {
-		return map[string]interface{}{"error": "File decryption failed: " + err.Error()}
+		return map[string]any{"error": "File decryption failed: " + err.Error()}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"fileData": base64.StdEncoding.EncodeToString(fileData),
 		"fileName": metadata["file_name"],
 		"fileType": metadata["file_type"],
 	}
 }
 
-func hashPasswordFunc(this js.Value, args []js.Value) interface{} {
+func hashPasswordFunc(this js.Value, args []js.Value) any {
 	if len(args) < 2 {
-		return map[string]interface{}{
+		return map[string]any{
 			"error": "Missing arguments: password, salt",
 		}
 	}
@@ -213,17 +225,21 @@ func hashPasswordFunc(this js.Value, args []js.Value) interface{} {
 
 	salt, err := utils.B64D(saltStr)
 	if err != nil {
-		return map[string]interface{}{"error": "Invalid salt"}
+		return map[string]any{"error": "Invalid salt"}
 	}
 
 	return hashPasswordString(password, salt)
 }
 
 func hashPasswordString(password string, salt []byte) string {
-	hash := sha256.New()
-	hash.Write([]byte(password))
-	hash.Write(salt)
-	return hex.EncodeToString(hash.Sum(nil))
+	key, err := scrypt.Key([]byte(password), salt, ScryptN, ScryptR, ScryptP, KeySize)
+	if err != nil {
+		hash := sha256.New()
+		hash.Write([]byte(password))
+		hash.Write(salt)
+		return hex.EncodeToString(hash.Sum(nil))
+	}
+	return hex.EncodeToString(key)
 }
 
 type Secret struct {
@@ -239,10 +255,10 @@ type Secret struct {
 
 func NewSecret() *Secret {
 	return &Secret{
-		Passphrase: utils.RandString(32, false),
-		Nonce:      utils.RandBytes(12),
-		Salt:       utils.RandBytes(16),
-		Header:     utils.RandBytes(16),
+		Passphrase: utils.RandString(PassphraseLength, false),
+		Nonce:      utils.RandBytes(NonceSize),
+		Salt:       utils.RandBytes(SaltSize),
+		Header:     utils.RandBytes(HeaderSize),
 		IsFile:     false,
 		TTL:        utils.SanitizeTTL("7"),
 		Data:       nil,
@@ -250,18 +266,23 @@ func NewSecret() *Secret {
 }
 
 func (s *Secret) Encrypt(input_data []byte) ([]byte, error) {
-	var ciphertext []byte
-	aesGCM, err := s.setupCipher()
-	ciphertext = aesGCM.Seal(ciphertext, s.Nonce, input_data, s.Header)
-	return ciphertext, err
-}
-
-func (s *Secret) Decrypt() ([]byte, error) {
-	var plaintext []byte
 	aesGCM, err := s.setupCipher()
 	if err != nil {
 		return nil, err
 	}
+
+	ciphertext := make([]byte, 0, len(input_data)+GCMTagSize)
+	ciphertext = aesGCM.Seal(ciphertext, s.Nonce, input_data, s.Header)
+	return ciphertext, nil
+}
+
+func (s *Secret) Decrypt() ([]byte, error) {
+	aesGCM, err := s.setupCipher()
+	if err != nil {
+		return nil, err
+	}
+
+	plaintext := make([]byte, 0, len(s.Data))
 	plaintext, err = aesGCM.Open(plaintext, s.Nonce, s.Data, s.Header)
 	return plaintext, err
 }
@@ -285,7 +306,7 @@ func (s *Secret) setupCipher() (cipher.AEAD, error) {
 }
 
 func (s *Secret) deriveKey() ([]byte, error) {
-	key, err := scrypt.Key([]byte(s.Passphrase), s.Salt, 2<<14, 8, 1, 32)
+	key, err := scrypt.Key([]byte(s.Passphrase), s.Salt, ScryptN, ScryptR, ScryptP, KeySize)
 	if err != nil {
 		return nil, err
 	}

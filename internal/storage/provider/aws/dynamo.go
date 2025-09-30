@@ -5,14 +5,14 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamotypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/nckslvrmn/secure_secret_share/internal/config"
 	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
 	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
-// DynamoDBAPI defines the interface for DynamoDB operations we use
 type DynamoDBAPI interface {
 	GetItem(ctx context.Context, params *dynamodb.GetItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
 	PutItem(ctx context.Context, params *dynamodb.PutItemInput, optFns ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
@@ -25,7 +25,7 @@ type DynamoStore struct {
 }
 
 func NewDynamoStore() storagetypes.SecretStore {
-	cfg, _ := config.LoadDefaultConfig(context.Background(), config.WithRegion(utils.AWSRegion))
+	cfg, _ := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(config.AWSRegion))
 	return &DynamoStore{
 		client: dynamodb.NewFromConfig(cfg),
 	}
@@ -42,7 +42,7 @@ func (d *DynamoStore) StoreSecretRaw(secretId string, data []byte, ttl int64, vi
 	_, err := d.client.PutItem(
 		context.Background(),
 		&dynamodb.PutItemInput{
-			TableName: aws.String(utils.DynamoTable),
+			TableName: aws.String(config.DynamoTable),
 			Item:      item,
 		},
 	)
@@ -54,7 +54,7 @@ func (d *DynamoStore) GetSecretRaw(secretId string) ([]byte, error) {
 	result, err := d.client.GetItem(
 		context.Background(),
 		&dynamodb.GetItemInput{
-			TableName: aws.String(utils.DynamoTable),
+			TableName: aws.String(config.DynamoTable),
 			Key: map[string]dynamotypes.AttributeValue{
 				"secret_id": &dynamotypes.AttributeValueMemberS{Value: secretId},
 			},
@@ -83,7 +83,7 @@ func (d *DynamoStore) DeleteSecret(secretId string) error {
 	_, err := d.client.DeleteItem(
 		context.Background(),
 		&dynamodb.DeleteItemInput{
-			TableName: aws.String(utils.DynamoTable),
+			TableName: aws.String(config.DynamoTable),
 			Key: map[string]dynamotypes.AttributeValue{
 				"secret_id": &dynamotypes.AttributeValueMemberS{Value: secretId},
 			},
@@ -96,7 +96,7 @@ func (d *DynamoStore) UpdateSecretRaw(secretId string, data []byte) error {
 	_, err := d.client.UpdateItem(
 		context.Background(),
 		&dynamodb.UpdateItemInput{
-			TableName: aws.String(utils.DynamoTable),
+			TableName: aws.String(config.DynamoTable),
 			Key: map[string]dynamotypes.AttributeValue{
 				"secret_id": &dynamotypes.AttributeValueMemberS{Value: secretId},
 			},

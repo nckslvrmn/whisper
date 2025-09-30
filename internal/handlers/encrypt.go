@@ -9,7 +9,6 @@ import (
 	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
 )
 
-// E2E encrypted data structure
 type E2EData struct {
 	PasswordHash      string `json:"passwordHash"`
 	EncryptedData     string `json:"encryptedData"`
@@ -28,12 +27,19 @@ func EncryptString(c echo.Context) error {
 
 	err := c.Bind(&data)
 	if err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+		return errorResponse(c, http.StatusBadRequest, "invalid request")
 	}
 
 	if data.PasswordHash == "" || data.EncryptedData == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing required fields"})
+		return errorResponse(c, http.StatusBadRequest, "missing required fields")
+	}
+
+	if !validatePasswordHash(data.PasswordHash) {
+		return errorResponse(c, http.StatusBadRequest, "invalid password hash format")
+	}
+
+	if len(data.EncryptedData) > MaxTextSize {
+		return errorResponse(c, http.StatusBadRequest, "text size exceeds limit")
 	}
 
 	return storeEncryptedData(c, &data, false)
@@ -44,20 +50,26 @@ func EncryptFile(c echo.Context) error {
 
 	err := c.Bind(&data)
 	if err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+		return errorResponse(c, http.StatusBadRequest, "invalid request")
 	}
 
 	if data.PasswordHash == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing required fields"})
+		return errorResponse(c, http.StatusBadRequest, "missing required fields")
+	}
+
+	if !validatePasswordHash(data.PasswordHash) {
+		return errorResponse(c, http.StatusBadRequest, "invalid password hash format")
 	}
 
 	if data.EncryptedFile != "" {
+		if len(data.EncryptedFile) > MaxFileSize {
+			return errorResponse(c, http.StatusBadRequest, "file size exceeds limit")
+		}
+
 		secretId := utils.RandString(16, true)
 		fileStore := storage.GetFileStore()
 		if err := fileStore.StoreEncryptedFile(secretId, []byte(data.EncryptedFile)); err != nil {
-			c.Logger().Error(err)
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "error storing file"})
+			return errorResponse(c, http.StatusInternalServerError, "error storing file")
 		}
 		return storeEncryptedDataWithId(c, &data, true, secretId)
 	}
@@ -83,12 +95,14 @@ func storeEncryptedDataWithId(c echo.Context, data *E2EData, isFile bool, secret
 	}
 
 	secretStore := storage.GetSecretStore()
-	secretDataJson, _ := json.Marshal(secretData)
-
-	if err := secretStore.StoreSecretRaw(secretId, secretDataJson, data.TTL, data.ViewCount); err != nil {
-		c.Logger().Error(err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "error storing secret"})
+	secretDataJson, err := json.Marshal(secretData)
+	if err != nil {
+		return errorResponse(c, http.StatusInternalServerError, "error serializing secret data")
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{"status": "success", "secretId": secretId})
+	if err := secretStore.StoreSecretRaw(secretId, secretDataJson, data.TTL, data.ViewCount); err != nil {
+		return errorResponse(c, http.StatusInternalServerError, "error storing secret")
+	}
+
+	return successResponse(c, map[string]string{"status": "success", "secretId": secretId})
 }

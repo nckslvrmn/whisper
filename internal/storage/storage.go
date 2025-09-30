@@ -3,8 +3,8 @@ package storage
 import (
 	"fmt"
 	"log"
-	"os"
 
+	"github.com/nckslvrmn/secure_secret_share/internal/config"
 	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/aws"
 	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/gcp"
 	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/local"
@@ -14,20 +14,19 @@ import (
 var secretStore types.SecretStore
 var fileStore types.FileStore
 
-// Initialize sets up the appropriate storage backend based on environment variables
 func Initialize() error {
-	// Check for AWS configuration
-	if os.Getenv("DYNAMO_TABLE") != "" && os.Getenv("S3_BUCKET") != "" {
-		// Use AWS storage
+	if err := config.LoadStorageConfig(); err != nil {
+		return fmt.Errorf("failed to load storage config: %w", err)
+	}
+
+	if config.UsesAWS {
 		log.Println("Initializing AWS storage providers (DynamoDB and S3)")
 		secretStore = aws.NewDynamoStore()
 		fileStore = aws.NewS3Store()
 		return nil
 	}
 
-	// Check for GCP configuration
-	if os.Getenv("FIRESTORE_DATABASE") != "" && os.Getenv("GCS_BUCKET") != "" {
-		// Use GCP storage
+	if config.UsesGCP {
 		log.Println("Initializing GCP storage providers (Firestore and GCS)")
 		var err error
 		secretStore, err = gcp.NewFirestoreStore()
@@ -38,7 +37,6 @@ func Initialize() error {
 		return nil
 	}
 
-	// Fall back to local storage
 	log.Println("No AWS or GCP configuration found, using local storage providers (SQLite and file system)")
 	dataDir := "/data"
 
@@ -51,22 +49,18 @@ func Initialize() error {
 	return nil
 }
 
-// GetSecretStore returns the configured secret store
 func GetSecretStore() types.SecretStore {
 	return secretStore
 }
 
-// GetFileStore returns the configured file store
 func GetFileStore() types.FileStore {
 	return fileStore
 }
 
-// SetSecretStore sets the secret store (for testing)
 func SetSecretStore(store types.SecretStore) {
 	secretStore = store
 }
 
-// SetFileStore sets the file store (for testing)
 func SetFileStore(store types.FileStore) {
 	fileStore = store
 }
