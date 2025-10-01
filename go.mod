@@ -12,7 +12,7 @@ require (
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/mattn/go-sqlite3 v1.14.32
 	golang.org/x/crypto v0.42.0
-	google.golang.org/api v0.250.0
+	google.golang.org/api v0.251.0
 	google.golang.org/grpc v1.75.1
 )
 
