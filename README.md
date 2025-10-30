@@ -212,7 +212,7 @@ All cryptographic operations use:
 
 ### 🔐 End-to-End Encryption Details
 
-**S³** implements true end-to-end encryption with WebAssembly:
+**Whisper** implements true end-to-end encryption with WebAssembly:
 
 #### Client-Side Encryption (WASM)
 
@@ -256,7 +256,7 @@ All cryptographic operations use:
 
 ```text
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Clients   │────▶│  Load       │────▶│     S³      │
+│   Clients   │────▶│  Load       │────▶│   Whisper   │
 └─────────────┘     │  Balancer   │     │  Instances  │
                     └─────────────┘     └─────────────┘
                                                │
