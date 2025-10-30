@@ -5,7 +5,7 @@ import (
 	"regexp"
 
 	echo "github.com/labstack/echo/v4"
-	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
+	"github.com/nckslvrmn/whisper/pkg/utils"
 )
 
 const (

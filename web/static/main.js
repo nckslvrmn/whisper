@@ -102,8 +102,8 @@ async function postSecretFile(event) {
     return setResp('warning', 'Please select a file', true);
   }
 
-  if ((file.size / (1024 * 1024)) > 5) {
-    return setResp('warning', 'File size exceeds 5MB limit', true);
+  if ((file.size / (1024 * 1024)) > 10) {
+    return setResp('warning', 'File size exceeds 10MB limit', true);
   }
 
   const arrayBuffer = await file.arrayBuffer();

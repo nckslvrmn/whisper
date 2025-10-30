@@ -18,10 +18,10 @@ wasm: deps
 
 server:
 	@echo "Building server..."
-	@go build -o secure_secret_share cmd/server/main.go
+	@go build -o whisper cmd/server/main.go
 	@echo "Server build complete"
 
 clean:
-	rm -f secure_secret_share
+	rm -f whisper
 	rm -f web/static/crypto.wasm*
 	rm -f web/static/wasm_exec.js

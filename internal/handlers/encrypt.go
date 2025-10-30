@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	echo "github.com/labstack/echo/v4"
-	"github.com/nckslvrmn/secure_secret_share/internal/storage"
-	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
+	"github.com/nckslvrmn/whisper/internal/storage"
+	"github.com/nckslvrmn/whisper/pkg/utils"
 )
 
 type E2EData struct {

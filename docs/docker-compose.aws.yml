@@ -1,5 +1,5 @@
 # Docker Compose configuration for AWS backend
-# 
+#
 # IMPORTANT: Update the following before running:
 # - Image TAG: Replace with specific version or 'latest'
 # - DYNAMO_TABLE: Your DynamoDB table name
@@ -7,17 +7,17 @@
 # - AWS_REGION: Your AWS region
 # - Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env file or environment
 
-version: '3.8'
+version: "3.8"
 
 services:
   secure-secret-share:
-    image: ghcr.io/nckslvrmn/secure_secret_share:TAG  # Replace TAG with version (e.g., v1.0.0) or 'latest'
+    image: ghcr.io/nckslvrmn/whisper:TAG # Replace TAG with version (e.g., v1.0.0) or 'latest'
     ports:
       - "8081:8081"
     environment:
-      - DYNAMO_TABLE=secrets  # Update with your DynamoDB table name
-      - S3_BUCKET=encrypted-files  # Update with your S3 bucket name
-      - AWS_REGION=us-east-1  # Update with your AWS region
+      - DYNAMO_TABLE=secrets # Update with your DynamoDB table name
+      - S3_BUCKET=encrypted-files # Update with your S3 bucket name
+      - AWS_REGION=us-east-1 # Update with your AWS region
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
     # Uncomment the volumes section below if using IAM roles from local AWS config

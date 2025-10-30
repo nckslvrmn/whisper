@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"syscall/js"
 
-	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
+	"github.com/nckslvrmn/whisper/pkg/utils"
 	"golang.org/x/crypto/scrypt"
 )
 

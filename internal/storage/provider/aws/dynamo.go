@@ -8,9 +8,9 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamotypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/nckslvrmn/secure_secret_share/internal/config"
-	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
-	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
+	"github.com/nckslvrmn/whisper/internal/config"
+	storagetypes "github.com/nckslvrmn/whisper/internal/storage/types"
+	"github.com/nckslvrmn/whisper/pkg/utils"
 )
 
 type DynamoDBAPI interface {

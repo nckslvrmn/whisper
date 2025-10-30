@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
+	storagetypes "github.com/nckslvrmn/whisper/internal/storage/types"
 )
 
 func isValidSecretId(secretId string) bool {

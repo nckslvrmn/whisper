@@ -10,8 +10,8 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/nckslvrmn/secure_secret_share/internal/config"
-	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
+	"github.com/nckslvrmn/whisper/internal/config"
+	storagetypes "github.com/nckslvrmn/whisper/internal/storage/types"
 )
 
 type S3API interface {

@@ -3,7 +3,7 @@
 > End-to-end encrypted secret sharing service with WebAssembly-powered client-side encryption. Share sensitive information with true zero-knowledge architecture - your secrets are encrypted in your browser before ever leaving your device.
 
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.23-00ADD8?logo=go)](https://go.dev/)
-[![License](https://img.shields.io/github/license/nckslvrmn/secure_secret_share)](LICENSE)
+[![License](https://img.shields.io/github/license/nckslvrmn/whisper)](LICENSE)
 [![Security](https://img.shields.io/badge/encryption-AES--256--GCM-green?logo=shield)](https://en.wikipedia.org/wiki/Galois/Counter_Mode)
 [![KDF](https://img.shields.io/badge/KDF-scrypt-blue)](https://en.wikipedia.org/wiki/Scrypt)
 [![WASM](https://img.shields.io/badge/WASM-Enabled-orange?logo=webassembly)](https://webassembly.org/)
@@ -28,28 +28,28 @@
 ```bash
 # Pull and run with AWS backend
 docker run -d \
-  --name secure_secret_share \
+  --name whisper \
   -p 8080:8080 \
   -e DYNAMO_TABLE=secrets \
   -e S3_BUCKET=encrypted-files \
   -e AWS_REGION=us-east-1 \
-  secure_secret_share:latest
+  whisper:latest
 
 # Or with Google Cloud backend
 docker run -d \
-  --name secure_secret_share \
+  --name whisper \
   -p 8080:8080 \
   -e GCP_PROJECT_ID=your-project \
   -e FIRESTORE_DATABASE=secrets-db \
   -e GCS_BUCKET=encrypted-files \
-  secure_secret_share:latest
+  whisper:latest
 
 # Or with local storage (SQLite + filesystem)
 docker run -d \
-  --name secure_secret_share \
+  --name whisper \
   -p 8080:8080 \
   -v /path/to/local/storage:/data \
-  secure_secret_share:latest
+  whisper:latest
 ```
 
 ### 🐳 Docker Compose
@@ -77,17 +77,17 @@ docker-compose -f docs/docker-compose.local.yml up -d
 
 ```bash
 # Clone the repository
-git clone https://github.com/nckslvrmn/secure_secret_share.git
-cd secure_secret_share
+git clone https://github.com/nckslvrmn/whisper.git
+cd whisper
 
 # Build the WASM module
 make wasm
 
 # Build the Docker image
-docker build -t secure_secret_share .
+docker build -t whisper .
 
 # Or build locally
-go build -o secure_secret_share main.go
+go build -o whisper main.go
 ```
 
 ## 🔧 Configuration
@@ -97,6 +97,7 @@ go build -o secure_secret_share main.go
 Choose your storage provider by configuring the appropriate variables:
 
 #### ☁️ AWS Configuration
+
 | Variable | Required | Description |
 |----------|:--------:|-------------|
 | `DYNAMO_TABLE` | ✅ | DynamoDB table name for storing encrypted secrets |
@@ -104,6 +105,7 @@ Choose your storage provider by configuring the appropriate variables:
 | `AWS_REGION` | ⚪ | AWS region (default: `us-east-1`) |
 
 #### ☁️ Google Cloud Configuration
+
 | Variable | Required | Description |
 |----------|:--------:|-------------|
 | `GCP_PROJECT_ID` | ✅ | Google Cloud project ID |
@@ -111,6 +113,7 @@ Choose your storage provider by configuring the appropriate variables:
 | `GCS_BUCKET` | ✅ | Cloud Storage bucket name |
 
 #### 💾 Local Storage Configuration (Default Fallback)
+
 When no AWS or GCP environment variables are configured, the application automatically falls back to local storage using SQLite and the filesystem.
 
 | Volume Mount | Description |
@@ -118,7 +121,6 @@ When no AWS or GCP environment variables are configured, the application automat
 | `/data` | Mount a local directory here to persist SQLite database and encrypted files |
 
 > **Note**: Local storage does not automatically clean up expired secrets based on TTL. Manual cleanup may be required.
-
 > **Storage Priority**: AWS → Google Cloud → Local (fallback)
 
 ## 🔑 Authentication
@@ -126,12 +128,14 @@ When no AWS or GCP environment variables are configured, the application automat
 ### AWS Authentication
 
 Choose one of these methods:
+
 1. **IAM Role** (Recommended for EC2/ECS)
 2. **Environment Variables**: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
 3. **AWS Profile**: Set `AWS_PROFILE`
 4. **Default Credential Chain**: Automatically tries all methods
 
 Required IAM permissions:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -165,6 +169,7 @@ Required IAM permissions:
 2. **Application Default Credentials**: Automatic in GCP environments
 
 Required roles:
+
 - **Firestore**: `roles/datastore.user`
 - **Cloud Storage**: `roles/storage.objectAdmin`
 
@@ -190,6 +195,7 @@ Required roles:
 ### WebAssembly Module
 
 The WASM module (`crypto.wasm`) provides:
+
 - `encryptText`: Encrypts text secrets with configurable view counts and TTL
 - `encryptFile`: Encrypts files with metadata
 - `decryptText`: Decrypts text secrets
@@ -197,6 +203,7 @@ The WASM module (`crypto.wasm`) provides:
 - `hashPassword`: Creates secure password hashes
 
 All cryptographic operations use:
+
 - **AES-256-GCM** for authenticated encryption
 - **Scrypt** for key derivation (N=2^15, r=8, p=1)
 - **Cryptographically secure random** for all nonces, salts, and passphrases
@@ -208,24 +215,28 @@ All cryptographic operations use:
 **S³** implements true end-to-end encryption with WebAssembly:
 
 #### Client-Side Encryption (WASM)
+
 - **Location**: All encryption happens in your browser via WebAssembly
 - **Keys**: Generated client-side, never transmitted to server
 - **Passphrase**: 32-character random string generated in browser
 - **Zero-Trust**: Server cannot decrypt data even if compromised
 
 #### AES-256-GCM
+
 - **Algorithm**: Advanced Encryption Standard with 256-bit keys
 - **Mode**: Galois/Counter Mode for authenticated encryption
 - **Benefits**: Provides confidentiality, integrity, and authenticity in a single operation
 - **Performance**: Parallelizable for high-speed encryption/decryption
 
 #### Scrypt Key Derivation
+
 - **Purpose**: Converts passphrases into encryption keys
 - **Design**: Memory-hard function resistant to ASIC/GPU attacks
 - **Parameters**: N=2^15, r=8, p=1 (32MB memory requirement)
 - **Protection**: Makes brute-force attacks economically infeasible
 
 #### Cryptographic Randomness
+
 - **Source**: Browser's Web Crypto API for client-side operations
 - **Server**: `/dev/urandom` via Go's `crypto/rand` for IDs only
 - **Usage**: Secret IDs, passphrases, salts, and nonces
@@ -243,7 +254,7 @@ All cryptographic operations use:
 
 ### Recommended Architecture
 
-```
+```text
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │   Clients   │────▶│  Load       │────▶│     S³      │
 └─────────────┘     │  Balancer   │     │  Instances  │
@@ -310,7 +321,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-<p align="center">
-  Made with ❤️ for keeping secrets secret<br>
-  <sub>Remember: Once viewed, secrets are gone forever! 🔥</sub>
-</p>
+Made with ❤️ for keeping secrets secret
+*Remember: Once viewed, secrets are gone forever! 🔥*

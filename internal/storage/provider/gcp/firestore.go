@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/firestore"
-	"github.com/nckslvrmn/secure_secret_share/internal/config"
-	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
-	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
+	"github.com/nckslvrmn/whisper/internal/config"
+	storagetypes "github.com/nckslvrmn/whisper/internal/storage/types"
+	"github.com/nckslvrmn/whisper/pkg/utils"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

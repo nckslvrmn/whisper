@@ -13,8 +13,8 @@ import (
 
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/nckslvrmn/secure_secret_share/internal/handlers"
-	"github.com/nckslvrmn/secure_secret_share/internal/storage"
+	"github.com/nckslvrmn/whisper/internal/handlers"
+	"github.com/nckslvrmn/whisper/internal/storage"
 )
 
 type TemplateRegistry struct {

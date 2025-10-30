@@ -9,8 +9,8 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
-	"github.com/nckslvrmn/secure_secret_share/pkg/utils"
+	storagetypes "github.com/nckslvrmn/whisper/internal/storage/types"
+	"github.com/nckslvrmn/whisper/pkg/utils"
 )
 
 type SQLiteStore struct {

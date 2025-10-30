@@ -7,8 +7,8 @@ import (
 	"io"
 
 	"cloud.google.com/go/storage"
-	"github.com/nckslvrmn/secure_secret_share/internal/config"
-	storagetypes "github.com/nckslvrmn/secure_secret_share/internal/storage/types"
+	"github.com/nckslvrmn/whisper/internal/config"
+	storagetypes "github.com/nckslvrmn/whisper/internal/storage/types"
 	"google.golang.org/api/option"
 )
 

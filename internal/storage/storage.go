@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/nckslvrmn/secure_secret_share/internal/config"
-	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/aws"
-	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/gcp"
-	"github.com/nckslvrmn/secure_secret_share/internal/storage/provider/local"
-	"github.com/nckslvrmn/secure_secret_share/internal/storage/types"
+	"github.com/nckslvrmn/whisper/internal/config"
+	"github.com/nckslvrmn/whisper/internal/storage/provider/aws"
+	"github.com/nckslvrmn/whisper/internal/storage/provider/gcp"
+	"github.com/nckslvrmn/whisper/internal/storage/provider/local"
+	"github.com/nckslvrmn/whisper/internal/storage/types"
 )
 
 var secretStore types.SecretStore

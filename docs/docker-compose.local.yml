@@ -3,11 +3,11 @@
 # IMPORTANT: Update the following before running:
 # - Image TAG: Replace with specific version or 'latest'
 
-version: '3.8'
+version: "3.8"
 
 services:
-  secure-secret-share:
-    image: ghcr.io/nckslvrmn/secure_secret_share:TAG  # Replace TAG with version (e.g., v1.0.0) or 'latest'
+  whisper:
+    image: ghcr.io/nckslvrmn/whisper:TAG # Replace TAG with version (e.g., v1.0.0) or 'latest'
     ports:
       - "8081:8081"
     volumes:
