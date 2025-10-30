@@ -1,4 +1,4 @@
-# 🔐 S³: Secure Secret Share
+# 🔐 Whisper
 
 > End-to-end encrypted secret sharing service with WebAssembly-powered client-side encryption. Share sensitive information with true zero-knowledge architecture - your secrets are encrypted in your browser before ever leaving your device.
 
