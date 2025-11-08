@@ -18,7 +18,7 @@ wasm: deps
 
 server:
 	@echo "Building server..."
-	@go build -o whisper cmd/server/main.go
+	@CGO_ENABLED=1 go build -o whisper cmd/server/main.go
 	@echo "Server build complete"
 
 clean:

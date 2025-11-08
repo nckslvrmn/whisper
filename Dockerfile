@@ -1,7 +1,7 @@
 FROM public.ecr.aws/docker/library/golang:alpine AS base
 COPY . /src
 WORKDIR /src
-RUN apk add --no-cache brotli gzip make && make
+RUN apk add --no-cache brotli gzip make g++ && make
 
 FROM public.ecr.aws/docker/library/alpine:latest
 RUN apk add --no-cache ca-certificates
