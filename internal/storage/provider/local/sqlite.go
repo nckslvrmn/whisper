@@ -36,6 +36,17 @@ func NewSQLiteStore(dataDir string) (storagetypes.SecretStore, error) {
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
 
+	go func() {
+		for {
+			time.Sleep(1 * time.Hour)
+			if rowsAffected, err := store.cleanupExpiredSecrets(); err != nil {
+				log.Printf("Warning: failed to cleanup expired secrets: %v", err)
+			} else {
+				log.Printf("Successfully cleaned up %d expired secrets", rowsAffected)
+			}
+		}
+	}()
+
 	log.Printf("SQLite store initialized at %s", dbPath)
 	return store, nil
 }
@@ -128,6 +139,22 @@ func (s *SQLiteStore) DeleteSecret(secretId string) error {
 	}
 
 	return nil
+}
+
+func (s *SQLiteStore) cleanupExpiredSecrets() (int64, error) {
+	query := `DELETE FROM secrets WHERE ttl < ?`
+
+	result, err := s.db.Exec(query, time.Now().Unix())
+	if err != nil {
+		return 0, fmt.Errorf("failed to cleanup expired secrets: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return rowsAffected, nil
 }
 
 func (s *SQLiteStore) Close() error {
