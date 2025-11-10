@@ -14,10 +14,11 @@ import (
 )
 
 type SQLiteStore struct {
-	db *sql.DB
+	db        *sql.DB
+	fileStore storagetypes.FileStore
 }
 
-func NewSQLiteStore(dataDir string) (storagetypes.SecretStore, error) {
+func NewSQLiteStore(dataDir string, fileStore storagetypes.FileStore) (storagetypes.SecretStore, error) {
 	dbPath := filepath.Join(dataDir, "secrets.db")
 
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
@@ -29,7 +30,10 @@ func NewSQLiteStore(dataDir string) (storagetypes.SecretStore, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	store := &SQLiteStore{db: db}
+	store := &SQLiteStore{
+		db:        db,
+		fileStore: fileStore,
+	}
 
 	if err := store.createTable(); err != nil {
 		db.Close()
@@ -142,19 +146,35 @@ func (s *SQLiteStore) DeleteSecret(secretId string) error {
 }
 
 func (s *SQLiteStore) cleanupExpiredSecrets() (int64, error) {
-	query := `DELETE FROM secrets WHERE ttl < ?`
+	query := `DELETE FROM secrets WHERE ttl < ? RETURNING secret_id`
 
-	result, err := s.db.Exec(query, time.Now().Unix())
+	rows, err := s.db.Query(query, time.Now().Unix())
 	if err != nil {
 		return 0, fmt.Errorf("failed to cleanup expired secrets: %w", err)
 	}
+	defer rows.Close()
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	var count int64
+	for rows.Next() {
+		var secretId string
+		if err := rows.Scan(&secretId); err != nil {
+			log.Printf("Warning: failed to scan secret_id during cleanup: %v", err)
+			continue
+		}
+
+		if s.fileStore != nil {
+			if err := s.fileStore.DeleteEncryptedFile(secretId); err != nil {
+				log.Printf("Warning: failed to delete encrypted file for secret %s: %v", secretId, err)
+			}
+		}
+		count++
 	}
 
-	return rowsAffected, nil
+	if err := rows.Err(); err != nil {
+		return count, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return count, nil
 }
 
 func (s *SQLiteStore) Close() error {
