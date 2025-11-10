@@ -4,6 +4,7 @@ import "os"
 
 var (
 	AWSRegion         string
+	DataDir           string
 	DynamoTable       string
 	FirestoreDatabase string
 	GCPProjectID      string
@@ -27,6 +28,11 @@ func LoadStorageConfig() error {
 	AWSRegion = "us-east-1"
 	if regionValue, regionExists := os.LookupEnv("AWS_REGION"); regionExists {
 		AWSRegion = regionValue
+	}
+
+	DataDir = "/data"
+	if dataDirValue, dataDirExists := os.LookupEnv("DATA_DIR"); dataDirExists {
+		DataDir = dataDirValue
 	}
 
 	return nil

@@ -15,6 +15,7 @@ services:
     ports:
       - "8081:8081"
     environment:
+      - PROJECT_NAME=Whisper # Overrides the default project name
       - DYNAMO_TABLE=secrets # Update with your DynamoDB table name
       - S3_BUCKET=encrypted-files # Update with your S3 bucket name
       - AWS_REGION=us-east-1 # Update with your AWS region
