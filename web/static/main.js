@@ -163,7 +163,7 @@ async function getSecret(event) {
       secret_id: secretId,
       getSalt: true
     }).catch(() => {
-      throw new Error('Secret not found');
+      throw new Error('Secret not found or already viewed');
     });
 
     // Generate password hash and fetch encrypted data
