@@ -1,5 +1,5 @@
 # Build artifacts
-secure_secret_share
+whisper
 *.exe
 
 # WASM files (generated during build)

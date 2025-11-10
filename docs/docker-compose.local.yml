@@ -10,8 +10,11 @@ services:
     image: ghcr.io/nckslvrmn/whisper:TAG # Replace TAG with version (e.g., v1.0.0) or 'latest'
     ports:
       - "8081:8081"
+    environment:
+      - PROJECT_NAME=Whisper # Overrides the default project name
+      - DATA_DIR=/data # Mount a local directory here to persist SQLite database and encrypted files
     volumes:
-      - secret-data:/data
+      - secret-data:/data # Mount a local directory here to persist SQLite database and encrypted files
     restart: unless-stopped
 
 volumes:

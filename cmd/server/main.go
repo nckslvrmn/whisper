@@ -13,6 +13,7 @@ import (
 
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/nckslvrmn/whisper/internal/config"
 	"github.com/nckslvrmn/whisper/internal/handlers"
 	"github.com/nckslvrmn/whisper/internal/storage"
 )
@@ -28,8 +29,22 @@ func (t *TemplateRegistry) Render(w io.Writer, name string, data any, c echo.Con
 	return echo.ErrNotFound
 }
 
+type TemplateData struct {
+	ProjectName string
+}
+
+func getTemplateData() TemplateData {
+	return TemplateData{
+		ProjectName: config.ProjectName,
+	}
+}
+
 func main() {
 	e := echo.New()
+
+	if err := config.LoadAppConfig(); err != nil {
+		e.Logger.Fatal(err)
+	}
 
 	if err := storage.Initialize(); err != nil {
 		e.Logger.Fatal(err)
@@ -109,9 +124,9 @@ func main() {
 }
 
 func index(c echo.Context) error {
-	return c.Render(http.StatusOK, "index", nil)
+	return c.Render(http.StatusOK, "index", getTemplateData())
 }
 
 func secret(c echo.Context) error {
-	return c.Render(http.StatusOK, "secret", nil)
+	return c.Render(http.StatusOK, "secret", getTemplateData())
 }

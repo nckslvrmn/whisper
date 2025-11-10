@@ -38,14 +38,13 @@ func Initialize() error {
 	}
 
 	log.Println("No AWS or GCP configuration found, using local storage providers (SQLite and file system)")
-	dataDir := "/data"
 
 	var err error
-	secretStore, err = local.NewSQLiteStore(dataDir)
+	secretStore, err = local.NewSQLiteStore(config.DataDir)
 	if err != nil {
 		return fmt.Errorf("failed to initialize SQLite store: %w", err)
 	}
-	fileStore = local.NewLocalFileStore(dataDir)
+	fileStore = local.NewLocalFileStore(config.DataDir)
 	return nil
 }
 

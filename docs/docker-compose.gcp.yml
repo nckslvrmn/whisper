@@ -15,6 +15,7 @@ services:
     ports:
       - "8081:8081"
     environment:
+      - PROJECT_NAME=Whisper # Overrides the default project name
       - GCP_PROJECT_ID=your-project-id # Update with your GCP project ID
       - FIRESTORE_DATABASE=secrets-db # Update with your Firestore database name
       - GCS_BUCKET=encrypted-files # Update with your GCS bucket name
