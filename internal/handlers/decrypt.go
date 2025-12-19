@@ -80,25 +80,27 @@ func Decrypt(c echo.Context) error {
 		}
 	}
 
-	viewCount, ok := secretData["viewCount"].(float64)
-	if !ok {
-		viewCount = 1
-	}
-	if viewCount > 0 {
-		viewCount--
-		if viewCount == 0 {
-			secretStore.DeleteSecret(requestData.SecretId)
-			if isFile {
-				fileStore := storage.GetFileStore()
-				fileStore.DeleteFile(requestData.SecretId)
+	if viewCountRaw, exists := secretData["viewCount"]; exists {
+		viewCount, ok := viewCountRaw.(float64)
+		if !ok {
+			viewCount = 1
+		}
+		if viewCount > 0 {
+			viewCount--
+			if viewCount == 0 {
+				secretStore.DeleteSecret(requestData.SecretId)
+				if isFile {
+					fileStore := storage.GetFileStore()
+					fileStore.DeleteFile(requestData.SecretId)
+				}
+			} else {
+				secretData["viewCount"] = viewCount
+				updatedJson, err := json.Marshal(secretData)
+				if err != nil {
+					return errorResponse(c, http.StatusInternalServerError, "error updating secret")
+				}
+				secretStore.UpdateSecretRaw(requestData.SecretId, updatedJson)
 			}
-		} else {
-			secretData["viewCount"] = viewCount
-			updatedJson, err := json.Marshal(secretData)
-			if err != nil {
-				return errorResponse(c, http.StatusInternalServerError, "error updating secret")
-			}
-			secretStore.UpdateSecretRaw(requestData.SecretId, updatedJson)
 		}
 	}
 

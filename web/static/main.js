@@ -106,11 +106,38 @@ async function postSecretFile(event) {
     return setResp('warning', 'File size exceeds 10MB limit', true);
   }
 
+  let viewCount = '1';
+  let ttlDays = '7';
+  let ttlTimestamp = null;
+
+  const disableTTLElem = document.getElementById('disableTTLFile');
+  const disableViewCountElem = document.getElementById('disableViewCountFile');
+  const exactTTLElem = document.getElementById('exactTTLFile');
+
+  if (disableTTLElem && disableViewCountElem && exactTTLElem) {
+    const disableTTL = disableTTLElem.checked;
+    const disableViewCount = disableViewCountElem.checked;
+    const exactTTL = exactTTLElem.value;
+
+    if (disableViewCount) {
+      viewCount = null;
+    }
+
+    if (exactTTL) {
+      const selectedDate = new Date(exactTTL);
+      ttlTimestamp = Math.floor(selectedDate.getTime() / 1000).toString();
+      ttlDays = null;
+    } else if (disableTTL) {
+      ttlDays = null;
+      ttlTimestamp = null;
+    }
+  }
+
   const arrayBuffer = await file.arrayBuffer();
   const base64 = arrayBufferToBase64(arrayBuffer);
 
   await handleEncryption(
-    () => wasmCrypto.encryptFile(base64, file.name, file.type),
+    () => wasmCrypto.encryptFile(base64, file.name, file.type, viewCount, ttlDays, ttlTimestamp),
     '/encrypt_file',
     { isFile: true }
   );
@@ -132,11 +159,35 @@ async function postSecret(event) {
     return setResp('warning', 'Please enter a secret', true);
   }
 
-  const viewCount = formData.get('view_count') || '1';
-  const ttlDays = formData.get('ttl_days') || '7';
+  let viewCount = formData.get('view_count') || '1';
+  let ttlDays = formData.get('ttl_days') || '7';
+  let ttlTimestamp = null;
+
+  const disableTTLElem = document.getElementById('disableTTL');
+  const disableViewCountElem = document.getElementById('disableViewCount');
+  const exactTTLElem = document.getElementById('exactTTL');
+
+  if (disableTTLElem && disableViewCountElem && exactTTLElem) {
+    const disableTTL = disableTTLElem.checked;
+    const disableViewCount = disableViewCountElem.checked;
+    const exactTTL = exactTTLElem.value;
+
+    if (disableViewCount) {
+      viewCount = null;
+    }
+
+    if (exactTTL) {
+      const selectedDate = new Date(exactTTL);
+      ttlTimestamp = Math.floor(selectedDate.getTime() / 1000).toString();
+      ttlDays = null;
+    } else if (disableTTL) {
+      ttlDays = null;
+      ttlTimestamp = null;
+    }
+  }
 
   await handleEncryption(
-    () => wasmCrypto.encryptText(secret, viewCount, ttlDays),
+    () => wasmCrypto.encryptText(secret, viewCount, ttlDays, ttlTimestamp),
     '/encrypt',
     { isFile: false }
   );
@@ -298,5 +349,28 @@ window.addEventListener('DOMContentLoaded', async () => {
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('type') === 'file') {
     toggleEncryptionType('file');
+  }
+
+  const advancedOptionsText = document.getElementById('advancedOptions');
+  const advancedOptionsFile = document.getElementById('advancedOptionsFile');
+
+  if (advancedOptionsText) {
+    const textButton = document.querySelector('[data-bs-target="#advancedOptions"]');
+    advancedOptionsText.addEventListener('show.bs.collapse', () => {
+      if (textButton) textButton.textContent = '▾ I know what I\'m doing';
+    });
+    advancedOptionsText.addEventListener('hide.bs.collapse', () => {
+      if (textButton) textButton.textContent = '▸ I know what I\'m doing';
+    });
+  }
+
+  if (advancedOptionsFile) {
+    const fileButton = document.querySelector('[data-bs-target="#advancedOptionsFile"]');
+    advancedOptionsFile.addEventListener('show.bs.collapse', () => {
+      if (fileButton) fileButton.textContent = '▾ I know what I\'m doing';
+    });
+    advancedOptionsFile.addEventListener('hide.bs.collapse', () => {
+      if (fileButton) fileButton.textContent = '▸ I know what I\'m doing';
+    });
   }
 });

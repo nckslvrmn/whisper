@@ -1,7 +1,7 @@
 package types
 
 type SecretStore interface {
-	StoreSecretRaw(secretId string, data []byte, ttl int64, viewCount int) error
+	StoreSecretRaw(secretId string, data []byte, ttl *int64, viewCount *int) error
 	GetSecretRaw(secretId string) ([]byte, error)
 	UpdateSecretRaw(secretId string, data []byte) error
 	DeleteSecret(secretId string) error

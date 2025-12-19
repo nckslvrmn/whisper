@@ -100,13 +100,19 @@ func NewFirestoreStore() (storagetypes.SecretStore, error) {
 	}, nil
 }
 
-func (f *FirestoreStore) StoreSecretRaw(secretId string, data []byte, ttl int64, viewCount int) error {
+func (f *FirestoreStore) StoreSecretRaw(secretId string, data []byte, ttl *int64, viewCount *int) error {
 	ctx := context.Background()
 
 	secretData := map[string]any{
-		"view_count": viewCount,
-		"data":       utils.B64E(data),
-		"ttl":        ttl,
+		"data": utils.B64E(data),
+	}
+
+	if viewCount != nil {
+		secretData["view_count"] = *viewCount
+	}
+
+	if ttl != nil {
+		secretData["ttl"] = *ttl
 	}
 
 	_, err := f.client.Collection(config.FirestoreDatabase).Doc(secretId).Set(ctx, secretData)

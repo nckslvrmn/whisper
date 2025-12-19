@@ -30,12 +30,14 @@ func (t *TemplateRegistry) Render(w io.Writer, name string, data any, c echo.Con
 }
 
 type TemplateData struct {
-	ProjectName string
+	ProjectName      string
+	AdvancedFeatures bool
 }
 
 func getTemplateData() TemplateData {
 	return TemplateData{
-		ProjectName: config.ProjectName,
+		ProjectName:      config.ProjectName,
+		AdvancedFeatures: config.AdvancedFeatures,
 	}
 }
 
@@ -81,7 +83,7 @@ func main() {
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
 	}))
-	e.Use(middleware.Logger())
+	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
 	e.Use(middleware.TimeoutWithConfig(middleware.TimeoutConfig{

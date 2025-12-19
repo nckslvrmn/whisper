@@ -31,12 +31,18 @@ func NewDynamoStore() storagetypes.SecretStore {
 	}
 }
 
-func (d *DynamoStore) StoreSecretRaw(secretId string, data []byte, ttl int64, viewCount int) error {
+func (d *DynamoStore) StoreSecretRaw(secretId string, data []byte, ttl *int64, viewCount *int) error {
 	item := map[string]dynamotypes.AttributeValue{
-		"secret_id":  &dynamotypes.AttributeValueMemberS{Value: secretId},
-		"view_count": &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", viewCount)},
-		"data":       &dynamotypes.AttributeValueMemberS{Value: utils.B64E(data)},
-		"ttl":        &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", ttl)},
+		"secret_id": &dynamotypes.AttributeValueMemberS{Value: secretId},
+		"data":      &dynamotypes.AttributeValueMemberS{Value: utils.B64E(data)},
+	}
+
+	if viewCount != nil {
+		item["view_count"] = &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", *viewCount)}
+	}
+
+	if ttl != nil {
+		item["ttl"] = &dynamotypes.AttributeValueMemberN{Value: fmt.Sprintf("%d", *ttl)}
 	}
 
 	_, err := d.client.PutItem(

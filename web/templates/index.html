@@ -42,6 +42,34 @@
         <option>30</option>
       </select>
     </div>
+
+    {{if .AdvancedFeatures}}
+    <div class="form-group">
+      <button class="btn btn-link text-decoration-none p-0 mb-2 text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false" aria-controls="advancedOptions">
+        ▸ I know what I'm doing
+      </button>
+      <div class="collapse" id="advancedOptions">
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="disableTTL" name="disable_ttl">
+          <label class="form-check-label" for="disableTTL">
+            Disable expiration (secret never expires)
+          </label>
+        </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="disableViewCount" name="disable_view_count">
+          <label class="form-check-label" for="disableViewCount">
+            Disable view count (only rely on expiration)
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="exactTTL" class="form-label">Or set exact expiration date/time:</label>
+          <input type="datetime-local" class="form-control" id="exactTTL" name="exact_ttl">
+          <small class="form-text text-muted">Leave empty to use days before expiration above</small>
+        </div>
+      </div>
+    </div>
+    {{end}}
+
     <div class="form-group">
       <input type="submit" class="btn btn-primary w-100" value="Create Secret Link">
     </div>
@@ -56,6 +84,34 @@
     <div class="mb-3 form-group">
       <input class="form-control" id="file" ref="file" type="file">
     </div>
+
+    {{if .AdvancedFeatures}}
+    <div class="form-group">
+      <button class="btn btn-link text-decoration-none p-0 mb-2 text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptionsFile" aria-expanded="false" aria-controls="advancedOptionsFile">
+        ▸ I know what I'm doing
+      </button>
+      <div class="collapse" id="advancedOptionsFile">
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="disableTTLFile" name="disable_ttl">
+          <label class="form-check-label" for="disableTTLFile">
+            Disable expiration (file never expires)
+          </label>
+        </div>
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="disableViewCountFile" name="disable_view_count">
+          <label class="form-check-label" for="disableViewCountFile">
+            Disable view count (only rely on expiration)
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="exactTTLFile" class="form-label">Or set exact expiration date/time:</label>
+          <input type="datetime-local" class="form-control" id="exactTTLFile" name="exact_ttl">
+          <small class="form-text text-muted">Leave empty for default 7 day expiration</small>
+        </div>
+      </div>
+    </div>
+    {{end}}
+
     <br />
     <div class="form-group d-grid gap-2">
       <input type="submit" class="btn btn-primary" value="Create Secret Link">
