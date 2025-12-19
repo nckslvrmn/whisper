@@ -120,8 +120,7 @@ When no AWS or GCP environment variables are configured, the application automat
 |--------------|-------------|
 | `/data` | Mount a local directory here to persist SQLite database and encrypted files |
 
-> **Note**: Local storage does not automatically clean up expired secrets based on TTL. Manual cleanup may be required.
-> **Storage Priority**: AWS → Google Cloud → Local (fallback)
+> **Note**: Storage Priority: AWS → Google Cloud → Local (fallback)
 
 ## 🔑 Authentication
 
