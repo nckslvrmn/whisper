@@ -60,29 +60,44 @@ func (s *SQLiteStore) createTable() error {
 	CREATE TABLE IF NOT EXISTS secrets (
 		secret_id TEXT PRIMARY KEY,
 		data TEXT NOT NULL,
-		view_count INTEGER NOT NULL,
-		ttl INTEGER NOT NULL,
+		view_count INTEGER,
+		ttl INTEGER,
 		created_at INTEGER NOT NULL
 	);
-	CREATE INDEX IF NOT EXISTS idx_ttl ON secrets(ttl);
+	CREATE INDEX IF NOT EXISTS idx_ttl ON secrets(ttl) WHERE ttl IS NOT NULL;
 	`
 
 	_, err := s.db.Exec(query)
 	return err
 }
 
-func (s *SQLiteStore) StoreSecretRaw(secretId string, data []byte, ttl int64, viewCount int) error {
+func (s *SQLiteStore) StoreSecretRaw(secretId string, data []byte, ttl *int64, viewCount *int) error {
 	query := `
 		INSERT INTO secrets (secret_id, data, view_count, ttl, created_at)
 		VALUES (?, ?, ?, ?, ?)
 	`
 
+	var ttlValue interface{}
+	var viewCountValue interface{}
+
+	if ttl != nil {
+		ttlValue = *ttl
+	} else {
+		ttlValue = nil
+	}
+
+	if viewCount != nil {
+		viewCountValue = *viewCount
+	} else {
+		viewCountValue = nil
+	}
+
 	_, err := s.db.Exec(
 		query,
 		secretId,
 		utils.B64E(data),
-		viewCount,
-		ttl,
+		viewCountValue,
+		ttlValue,
 		time.Now().Unix(),
 	)
 
@@ -146,7 +161,7 @@ func (s *SQLiteStore) DeleteSecret(secretId string) error {
 }
 
 func (s *SQLiteStore) cleanupExpiredSecrets() (int64, error) {
-	query := `DELETE FROM secrets WHERE ttl < ? RETURNING secret_id`
+	query := `DELETE FROM secrets WHERE ttl IS NOT NULL AND ttl < ? RETURNING secret_id`
 
 	rows, err := s.db.Query(query, time.Now().Unix())
 	if err != nil {

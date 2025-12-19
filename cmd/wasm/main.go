@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"strconv"
 	"syscall/js"
 
 	"github.com/nckslvrmn/whisper/pkg/utils"
@@ -49,30 +50,43 @@ func encryptTextFunc(this js.Value, args []js.Value) any {
 	}
 
 	text := args[0].String()
-	viewCount := args[1].String()
-	ttlDays := args[2].String()
 
 	secret := NewSecret()
-	secret.ViewCount = utils.SanitizeViewCount(viewCount)
-	secret.TTL = utils.SanitizeTTL(ttlDays)
+	result := map[string]any{
+		"passphrase":   secret.Passphrase,
+		"nonce":        utils.B64E(secret.Nonce),
+		"salt":         utils.B64E(secret.Salt),
+		"header":       utils.B64E(secret.Header),
+		"passwordHash": "",
+	}
+
+	if !args[1].IsNull() && !args[1].IsUndefined() {
+		viewCountStr := args[1].String()
+		secret.ViewCount = utils.SanitizeViewCount(viewCountStr)
+		result["viewCount"] = secret.ViewCount
+	}
+
+	if len(args) >= 4 && !args[3].IsNull() && !args[3].IsUndefined() {
+		ttlTimestampStr := args[3].String()
+		if ttlTimestampInt, err := strconv.ParseInt(ttlTimestampStr, 10, 64); err == nil {
+			secret.TTL = ttlTimestampInt
+			result["ttl"] = secret.TTL
+		}
+	} else if !args[2].IsNull() && !args[2].IsUndefined() {
+		ttlDays := args[2].String()
+		secret.TTL = utils.SanitizeTTL(ttlDays)
+		result["ttl"] = secret.TTL
+	}
 
 	encryptedData, err := secret.Encrypt([]byte(text))
 	if err != nil {
 		return map[string]any{"error": err.Error()}
 	}
 
-	passwordHash := hashPasswordString(secret.Passphrase, secret.Salt)
+	result["encryptedData"] = utils.B64E(encryptedData)
+	result["passwordHash"] = hashPasswordString(secret.Passphrase, secret.Salt)
 
-	return map[string]any{
-		"passphrase":    secret.Passphrase,
-		"encryptedData": utils.B64E(encryptedData),
-		"nonce":         utils.B64E(secret.Nonce),
-		"salt":          utils.B64E(secret.Salt),
-		"header":        utils.B64E(secret.Header),
-		"passwordHash":  passwordHash,
-		"viewCount":     secret.ViewCount,
-		"ttl":           secret.TTL,
-	}
+	return result
 }
 
 func encryptFileFunc(this js.Value, args []js.Value) any {
@@ -92,8 +106,33 @@ func encryptFileFunc(this js.Value, args []js.Value) any {
 	}
 
 	secret := NewSecret()
-	secret.ViewCount = 1
 	secret.IsFile = true
+
+	result := map[string]any{
+		"passphrase":   secret.Passphrase,
+		"nonce":        utils.B64E(secret.Nonce),
+		"salt":         utils.B64E(secret.Salt),
+		"header":       utils.B64E(secret.Header),
+		"passwordHash": "",
+	}
+
+	if len(args) >= 4 && !args[3].IsNull() && !args[3].IsUndefined() {
+		viewCountStr := args[3].String()
+		secret.ViewCount = utils.SanitizeViewCount(viewCountStr)
+		result["viewCount"] = secret.ViewCount
+	}
+
+	if len(args) >= 6 && !args[5].IsNull() && !args[5].IsUndefined() {
+		ttlTimestampStr := args[5].String()
+		if ttlTimestampInt, err := strconv.ParseInt(ttlTimestampStr, 10, 64); err == nil {
+			secret.TTL = ttlTimestampInt
+			result["ttl"] = secret.TTL
+		}
+	} else if len(args) >= 5 && !args[4].IsNull() && !args[4].IsUndefined() {
+		ttlDays := args[4].String()
+		secret.TTL = utils.SanitizeTTL(ttlDays)
+		result["ttl"] = secret.TTL
+	}
 
 	encryptedFile, err := secret.Encrypt(fileData)
 	if err != nil {
@@ -110,19 +149,11 @@ func encryptFileFunc(this js.Value, args []js.Value) any {
 		return map[string]any{"error": err.Error()}
 	}
 
-	passwordHash := hashPasswordString(secret.Passphrase, secret.Salt)
+	result["encryptedFile"] = utils.B64E(encryptedFile)
+	result["encryptedMetadata"] = utils.B64E(encryptedMetadata)
+	result["passwordHash"] = hashPasswordString(secret.Passphrase, secret.Salt)
 
-	return map[string]any{
-		"passphrase":        secret.Passphrase,
-		"encryptedFile":     utils.B64E(encryptedFile),
-		"encryptedMetadata": utils.B64E(encryptedMetadata),
-		"nonce":             utils.B64E(secret.Nonce),
-		"salt":              utils.B64E(secret.Salt),
-		"header":            utils.B64E(secret.Header),
-		"passwordHash":      passwordHash,
-		"viewCount":         secret.ViewCount,
-		"ttl":               secret.TTL,
-	}
+	return result
 }
 
 func decryptTextFunc(this js.Value, args []js.Value) any {

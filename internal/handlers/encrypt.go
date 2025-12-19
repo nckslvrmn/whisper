@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	echo "github.com/labstack/echo/v4"
+	"github.com/nckslvrmn/whisper/internal/config"
 	"github.com/nckslvrmn/whisper/internal/storage"
 	"github.com/nckslvrmn/whisper/pkg/utils"
 )
@@ -17,8 +18,8 @@ type E2EData struct {
 	Nonce             string `json:"nonce"`
 	Salt              string `json:"salt"`
 	Header            string `json:"header"`
-	ViewCount         int    `json:"viewCount"`
-	TTL               int64  `json:"ttl"`
+	ViewCount         *int   `json:"viewCount,omitempty"`
+	TTL               *int64 `json:"ttl,omitempty"`
 	IsFile            bool   `json:"isFile"`
 }
 
@@ -82,6 +83,12 @@ func storeEncryptedData(c echo.Context, data *E2EData, isFile bool) error {
 }
 
 func storeEncryptedDataWithId(c echo.Context, data *E2EData, isFile bool, secretId string) error {
+	if !config.AdvancedFeatures {
+		if data.TTL == nil || data.ViewCount == nil {
+			return errorResponse(c, http.StatusBadRequest, "advanced features are disabled")
+		}
+	}
+
 	secretData := map[string]any{
 		"passwordHash":      data.PasswordHash,
 		"encryptedData":     data.EncryptedData,
@@ -89,9 +96,14 @@ func storeEncryptedDataWithId(c echo.Context, data *E2EData, isFile bool, secret
 		"nonce":             data.Nonce,
 		"salt":              data.Salt,
 		"header":            data.Header,
-		"viewCount":         data.ViewCount,
-		"ttl":               data.TTL,
 		"isFile":            isFile,
+	}
+
+	if data.ViewCount != nil {
+		secretData["viewCount"] = *data.ViewCount
+	}
+	if data.TTL != nil {
+		secretData["ttl"] = *data.TTL
 	}
 
 	secretStore := storage.GetSecretStore()

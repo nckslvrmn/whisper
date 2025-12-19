@@ -43,7 +43,7 @@ func B64D(data string) ([]byte, error) {
 
 func SanitizeViewCount(viewCount string) int {
 	vc, err := strconv.Atoi(viewCount)
-	if err != nil || vc <= 0 || vc >= 10 {
+	if err != nil || vc <= 0 || vc > 10 {
 		return 1
 	}
 	return vc
