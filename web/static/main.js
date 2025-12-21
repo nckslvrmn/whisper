@@ -1,8 +1,13 @@
-// WASM crypto module
+const TIMEOUTS = {
+  WASM_INIT: 100,
+  FADE_TRANSITION: 200,
+  FORM_REMOVE: 300,
+  COPY_RESET: 2000,
+  FOCUS_DELAY: 100
+};
+
 let wasmReady = false;
 let wasmCrypto = null;
-
-// Initialize WASM module
 async function initWASM() {
   if (wasmReady) return;
 
@@ -13,7 +18,7 @@ async function initWASM() {
   );
 
   go.run(result.instance);
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await new Promise(resolve => setTimeout(resolve, TIMEOUTS.WASM_INIT));
 
   wasmCrypto = window.wasmCrypto;
   if (!wasmCrypto) {
@@ -21,6 +26,37 @@ async function initWASM() {
   }
 
   wasmReady = true;
+}
+
+function getTTLConfig(disableTTLId, disableViewCountId, exactTTLId, defaultViewCount = '1', defaultTTLDays = '7') {
+  let viewCount = defaultViewCount;
+  let ttlDays = defaultTTLDays;
+  let ttlTimestamp = null;
+
+  const disableTTLElem = document.getElementById(disableTTLId);
+  const disableViewCountElem = document.getElementById(disableViewCountId);
+  const exactTTLElem = document.getElementById(exactTTLId);
+
+  if (disableTTLElem && disableViewCountElem && exactTTLElem) {
+    const disableTTL = disableTTLElem.checked;
+    const disableViewCount = disableViewCountElem.checked;
+    const exactTTL = exactTTLElem.value;
+
+    if (disableViewCount) {
+      viewCount = null;
+    }
+
+    if (exactTTL) {
+      const selectedDate = new Date(exactTTL);
+      ttlTimestamp = Math.floor(selectedDate.getTime() / 1000).toString();
+      ttlDays = null;
+    } else if (disableTTL) {
+      ttlDays = null;
+      ttlTimestamp = null;
+    }
+  }
+
+  return { viewCount, ttlDays, ttlTimestamp };
 }
 
 // Helper to convert ArrayBuffer to base64
@@ -64,9 +100,18 @@ async function postJSON(url, data) {
 
 // Common encryption handler
 async function handleEncryption(encryptFn, endpoint, extraData = {}) {
+  const submitBtn = extraData.isFile ? document.getElementById('submitBtnFile') : document.getElementById('submitBtn');
+  const submitBtnText = extraData.isFile ? document.getElementById('submitBtnFileText') : document.getElementById('submitBtnText');
+
   try {
     await initWASM();
-    setResp('processing', 'Encrypting...', true);
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtnText.innerHTML = '<span class="spinner"></span>Encrypting...';
+    }
+
+    setResp('processing', '<span class="spinner"></span>Encrypting...', false);
 
     const result = encryptFn();
     if (result.error) throw new Error(result.error);
@@ -84,18 +129,30 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
     });
 
     const secret_link = `${window.location.origin}/secret/${responseData.secretId}`;
+    const contentId = 'secretContent_' + Date.now();
+
     setResp('success',
-      `<a href="${secret_link}" target="_blank">${secret_link}</a><br/>Passphrase: <code>${result.passphrase}</code>`,
+      `<span class="checkmark">✓</span> <strong>Secret successfully stored</strong><br/><br/><div id="${contentId}"><a href="${secret_link}" target="_blank">${secret_link}</a><br/><br/>Passphrase: <code>${result.passphrase}</code></div>
+      <button class="copy-btn-float" onclick="copyToClipboard('${contentId}', this)" aria-label="Copy link and passphrase">
+        <i class="fas fa-copy"></i> Copy
+      </button>`,
       false);
+
+    clearForm(extraData.isFile);
+    scrollToResults();
   } catch (error) {
     console.error('Error:', error);
-    setResp('alert', `There was an error encrypting the ${extraData.isFile ? 'file' : 'secret'}`, true);
+    setResp('alert', `<i class="fas fa-exclamation-circle alert-icon"></i>There was an error encrypting the ${extraData.isFile ? 'file' : 'secret'}`, false);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtnText.textContent = 'Create Secret Link';
+    }
   }
 }
 
 async function postSecretFile(event) {
   event.preventDefault();
-  // Don't hide the results box - we'll just update its content
 
   const file = document.getElementById('file').files[0];
   if (!file) {
@@ -106,32 +163,11 @@ async function postSecretFile(event) {
     return setResp('warning', 'File size exceeds 10MB limit', true);
   }
 
-  let viewCount = '1';
-  let ttlDays = '7';
-  let ttlTimestamp = null;
-
-  const disableTTLElem = document.getElementById('disableTTLFile');
-  const disableViewCountElem = document.getElementById('disableViewCountFile');
-  const exactTTLElem = document.getElementById('exactTTLFile');
-
-  if (disableTTLElem && disableViewCountElem && exactTTLElem) {
-    const disableTTL = disableTTLElem.checked;
-    const disableViewCount = disableViewCountElem.checked;
-    const exactTTL = exactTTLElem.value;
-
-    if (disableViewCount) {
-      viewCount = null;
-    }
-
-    if (exactTTL) {
-      const selectedDate = new Date(exactTTL);
-      ttlTimestamp = Math.floor(selectedDate.getTime() / 1000).toString();
-      ttlDays = null;
-    } else if (disableTTL) {
-      ttlDays = null;
-      ttlTimestamp = null;
-    }
-  }
+  const { viewCount, ttlDays, ttlTimestamp } = getTTLConfig(
+    'disableTTLFile',
+    'disableViewCountFile',
+    'exactTTLFile'
+  );
 
   const arrayBuffer = await file.arrayBuffer();
   const base64 = arrayBufferToBase64(arrayBuffer);
@@ -145,7 +181,6 @@ async function postSecretFile(event) {
 
 async function postSecret(event) {
   event.preventDefault();
-  // Don't hide the results box - we'll just update its content
 
   const form = document.getElementById("form");
   if (!form) {
@@ -159,32 +194,13 @@ async function postSecret(event) {
     return setResp('warning', 'Please enter a secret', true);
   }
 
-  let viewCount = formData.get('view_count') || '1';
-  let ttlDays = formData.get('ttl_days') || '7';
-  let ttlTimestamp = null;
-
-  const disableTTLElem = document.getElementById('disableTTL');
-  const disableViewCountElem = document.getElementById('disableViewCount');
-  const exactTTLElem = document.getElementById('exactTTL');
-
-  if (disableTTLElem && disableViewCountElem && exactTTLElem) {
-    const disableTTL = disableTTLElem.checked;
-    const disableViewCount = disableViewCountElem.checked;
-    const exactTTL = exactTTLElem.value;
-
-    if (disableViewCount) {
-      viewCount = null;
-    }
-
-    if (exactTTL) {
-      const selectedDate = new Date(exactTTL);
-      ttlTimestamp = Math.floor(selectedDate.getTime() / 1000).toString();
-      ttlDays = null;
-    } else if (disableTTL) {
-      ttlDays = null;
-      ttlTimestamp = null;
-    }
-  }
+  const { viewCount, ttlDays, ttlTimestamp } = getTTLConfig(
+    'disableTTL',
+    'disableViewCount',
+    'exactTTL',
+    formData.get('view_count') || '1',
+    formData.get('ttl_days') || '7'
+  );
 
   await handleEncryption(
     () => wasmCrypto.encryptText(secret, viewCount, ttlDays, ttlTimestamp),
@@ -195,21 +211,23 @@ async function postSecret(event) {
 
 async function getSecret(event) {
   event.preventDefault();
-  // Don't hide the results box - we'll just update its content
 
   const formData = new FormData(document.getElementById("form"));
   const passphrase = formData.get('passphrase');
   const secretId = window.location.pathname.split('/').pop();
 
   if (!passphrase) {
-    return setResp('warning', 'Please enter the passphrase', true);
+    return setResp('warning', '<i class="fas fa-exclamation-triangle alert-icon"></i>Please enter the passphrase', false);
   }
+
+  const form = document.getElementById('form');
 
   try {
     await initWASM();
-    setResp('processing', 'Decrypting...', true);
+    setResp('processing', '<span class="spinner"></span>Decrypting...', false);
 
-    // Get salt first
+    scrollToResults();
+
     const saltData = await postJSON('/decrypt', {
       secret_id: secretId,
       getSalt: true
@@ -217,7 +235,6 @@ async function getSecret(event) {
       throw new Error('Secret not found or already viewed');
     });
 
-    // Generate password hash and fetch encrypted data
     const passwordHash = wasmCrypto.hashPassword(passphrase, saltData.salt);
     const data = await postJSON('/decrypt', {
       secret_id: secretId,
@@ -227,7 +244,6 @@ async function getSecret(event) {
       throw new Error('Error retrieving the secret');
     });
 
-    // Decrypt based on type
     if (data.isFile) {
       const result = wasmCrypto.decryptFile(
         data.encryptedFile,
@@ -240,7 +256,6 @@ async function getSecret(event) {
 
       if (result.error) throw new Error(result.error);
 
-      // Download file
       const blob = base64ToBlob(result.fileData, result.fileType);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -249,9 +264,9 @@ async function getSecret(event) {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      setTimeout(() => URL.revokeObjectURL(url), TIMEOUTS.FOCUS_DELAY);
 
-      setResp('success', `File "${result.fileName}" downloaded successfully`, true);
+      setResp('success', `<span class="checkmark">✓</span> File "${result.fileName}" downloaded successfully`, false);
     } else {
       const result = wasmCrypto.decryptText(
         data.encryptedData,
@@ -262,17 +277,29 @@ async function getSecret(event) {
       );
 
       if (result.error) throw new Error(result.error);
-      setResp('success', result.data, true);
+      const contentId = 'decryptedContent_' + Date.now();
+      setResp('success', `<span class="checkmark">✓</span> <strong>Decrypted Secret:</strong><br/><br/><div id="${contentId}">${result.data}</div>
+      <button class="copy-btn-float" onclick="copyToClipboard('${contentId}', this)" aria-label="Copy decrypted secret">
+        <i class="fas fa-copy"></i> Copy
+      </button>`, false);
+      scrollToResults();
     }
 
-    document.getElementById('form').remove();
+    if (form) {
+      form.style.transition = 'opacity 0.3s ease';
+      form.style.opacity = '0';
+      setTimeout(() => form.remove(), TIMEOUTS.FORM_REMOVE);
+    }
   } catch (error) {
     console.error('Error:', error);
+    const icon = error.message.includes('passphrase') || error.message.includes('not found') ?
+      '<i class="fas fa-exclamation-triangle alert-icon"></i>' :
+      '<i class="fas fa-exclamation-circle alert-icon"></i>';
     const message = error.message.includes('passphrase') ? 'Invalid passphrase' :
       error.message.includes('not found') ? error.message :
         'There was an error decrypting the secret';
     setResp(error.message.includes('passphrase') || error.message.includes('not found') ? 'warning' : 'alert',
-      message, true);
+      icon + message, false);
   }
 }
 
@@ -292,15 +319,19 @@ function setResp(level, content, text_resp) {
     success: 'success'
   }[level] || 'success';
 
-  // If already showing an alert, just transition the content
-  if (results.classList.contains('active')) {
-    // Add a fade transition class temporarily
-    response.style.transition = 'background-color 0.3s ease, color 0.3s ease';
-    response.className = newClass;
-    response.setAttribute('role', 'alert');
-    responseBody[text_resp ? 'innerText' : 'innerHTML'] = content;
+  const isAlreadyActive = results.classList.contains('active');
+
+  if (isAlreadyActive) {
+    responseBody.style.transition = 'opacity 0.2s ease';
+    responseBody.style.opacity = '0';
+
+    setTimeout(() => {
+      response.className = newClass;
+      response.setAttribute('role', 'alert');
+      responseBody[text_resp ? 'innerText' : 'innerHTML'] = content;
+      responseBody.style.opacity = '1';
+    }, TIMEOUTS.FADE_TRANSITION);
   } else {
-    // First time showing, do the full animation
     response.className = newClass;
     response.setAttribute('role', 'alert');
     responseBody[text_resp ? 'innerText' : 'innerHTML'] = content;
@@ -308,6 +339,59 @@ function setResp(level, content, text_resp) {
     requestAnimationFrame(() => {
       results.classList.add('active');
     });
+  }
+}
+
+function scrollToResults() {
+  const results = document.getElementById('results');
+  if (results) {
+    const formWrapper = document.querySelector('.form');
+    if (formWrapper) {
+      formWrapper.style.marginBottom = '5vh';
+    }
+
+    const handleTransitionEnd = () => {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: 'smooth'
+      });
+      results.removeEventListener('transitionend', handleTransitionEnd);
+    };
+
+    results.addEventListener('transitionend', handleTransitionEnd);
+  }
+}
+
+function copyToClipboard(elementId, button) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+
+  const text = element.textContent || element.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const originalHTML = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+    button.classList.add('copied');
+
+    setTimeout(() => {
+      button.innerHTML = originalHTML;
+      button.classList.remove('copied');
+    }, TIMEOUTS.COPY_RESET);
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+    button.innerHTML = '<i class="fas fa-times"></i> Failed';
+    setTimeout(() => {
+      button.innerHTML = '<i class="fas fa-copy"></i> Copy';
+    }, TIMEOUTS.COPY_RESET);
+  });
+}
+
+function clearForm(isFile) {
+  if (isFile) {
+    const fileInput = document.getElementById('file');
+    if (fileInput) fileInput.value = '';
+  } else {
+    const textarea = document.getElementById('secretText');
+    if (textarea) textarea.value = '';
   }
 }
 
@@ -328,14 +412,20 @@ function toggleEncryptionType(type) {
   elements.fileToggle.classList.toggle('btn-primary', !isText);
   elements.fileToggle.classList.toggle('btn-outline-primary', isText);
 
-  // Clear inputs
-  const input = isText ?
-    document.getElementById('file') :
-    document.querySelector('#form textarea[name="secret"]');
-  if (input) input.value = '';
+  clearForm(!isText);
 
   const results = document.getElementById('results');
   if (results) results.classList.remove('active');
+
+  setTimeout(() => {
+    if (isText) {
+      const textarea = document.getElementById('secretText');
+      if (textarea) textarea.focus();
+    } else {
+      const fileInput = document.getElementById('file');
+      if (fileInput) fileInput.focus();
+    }
+  }, TIMEOUTS.FOCUS_DELAY);
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -373,4 +463,19 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (fileButton) fileButton.textContent = '▸ I know what I\'m doing';
     });
   }
+
+  const textarea = document.getElementById('secretText');
+  if (textarea) {
+    setTimeout(() => textarea.focus(), TIMEOUTS.FOCUS_DELAY);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      const textarea = document.getElementById('secretText');
+      if (textarea && textarea.offsetParent !== null) {
+        textarea.focus();
+      }
+    }
+  });
 });

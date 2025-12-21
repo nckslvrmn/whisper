@@ -12,29 +12,37 @@
   --yellow: #F1FA8C;
 }
 
-html,
-body {
+html {
   height: 100%;
   background: var(--background);
   color: var(--foreground);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-y: auto;
+  scroll-behavior: smooth;
 }
 
 body {
+  min-height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   padding: 1rem;
-  padding-top: 10vh;
   line-height: 1.6;
 }
 
+.form {
+  width: 100%;
+  max-width: 900px;
+}
+
 .main-title {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .form-signin {
-  max-width: 900px;
   background: var(--current-line);
   padding: 2rem;
   border-radius: 0.5rem;
@@ -46,7 +54,7 @@ body {
 }
 
 .form-signin .form-group {
-  margin-bottom: 2rem;
+  margin-bottom: 1.25rem;
   width: 100%;
 }
 
@@ -62,7 +70,8 @@ body {
 .form-signin h1 {
   color: var(--purple);
   font-weight: 700;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-size: 2.25rem;
 }
 
 .form-signin p {
@@ -83,21 +92,20 @@ body {
 .form-control {
   border: 1px solid var(--comment);
   border-radius: 0.375rem;
-  padding: 0.75rem 1.25rem;
-  transition: all 0.2s ease;
+  padding: 0.625rem 1rem;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
   background-color: var(--background);
   box-shadow: none;
   color: var(--foreground);
   width: 100%;
 }
 
-/* Custom file input styling */
 input[type="file"].form-control {
   border: 1px solid var(--comment);
   background: var(--background);
   color: var(--foreground);
   border-radius: 0.375rem;
-  transition: all 0.2s ease;
+  transition: border-color 0.15s ease;
 }
 
 input[type="file"].form-control:focus {
@@ -105,35 +113,21 @@ input[type="file"].form-control:focus {
   outline: none;
 }
 
-input[type="file"].form-control::file-selector-button {
-  padding: 0.75rem 1.5rem;
-  margin-right: 1rem;
-  margin-left: -0.75rem;
-  border: none;
-  border-radius: 0.375rem;
-  background-color: var(--purple);
-  color: var(--background);
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-input[type="file"].form-control::file-selector-button:hover {
-  background-color: var(--pink);
-}
-
+input[type="file"].form-control::file-selector-button,
 input[type="file"].form-control::-webkit-file-upload-button {
-  padding: 0.75rem 1.5rem;
+  padding: 0.625rem 1.25rem;
   margin-right: 1rem;
+  margin-left: -0.625rem;
   border: none;
   border-radius: 0.375rem;
   background-color: var(--purple);
   color: var(--background);
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease;
 }
 
+input[type="file"].form-control::file-selector-button:hover,
 input[type="file"].form-control::-webkit-file-upload-button:hover {
   background-color: var(--pink);
 }
@@ -151,10 +145,10 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 }
 
 .btn {
-  padding: 0.75rem 1.5rem;
+  padding: 0.625rem 1.25rem;
   font-weight: 600;
   border-radius: 0.375rem;
-  transition: all 0.2s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .btn-primary {
@@ -191,7 +185,6 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
   flex: 1;
   border-radius: 0;
   margin: 0;
-  transition: all 0.2s ease;
 }
 
 .btn-group .btn:first-child {
@@ -206,7 +199,7 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 
 .fas {
   color: var(--cyan);
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
   transition: transform 0.2s ease;
 }
 
@@ -216,33 +209,44 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 
 #results {
   width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
+  margin-top: 1.25rem;
+  margin-bottom: 0;
   background: transparent;
-  padding: 0 1rem;
+  padding: 0;
   box-sizing: border-box;
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.4s ease, margin 0.4s ease;
+  transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out, margin-bottom 0.3s ease-in-out;
+  opacity: 0;
 }
 
 #results.active {
-  max-height: 500px;
-  margin: 1rem auto;
+  max-height: 5000px;
+  min-height: 60px;
   overflow: visible;
+  opacity: 1;
+  margin-bottom: 0.25rem;
 }
 
 #results .alert {
-  opacity: 0;
-  transform: translateY(-20px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
-  width: 100%;
-  margin: 0;
-}
-
-#results.active .alert {
   opacity: 1;
   transform: translateY(0);
+  width: 100%;
+  margin: 0;
+  position: relative;
+}
+
+#results,
+#response,
+#response_body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#results::-webkit-scrollbar,
+#response::-webkit-scrollbar,
+#response_body::-webkit-scrollbar {
+  display: none;
 }
 
 #response {
@@ -251,25 +255,56 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 }
 
 #response_body {
-  padding: 1rem;
+  padding: 0.25rem 5rem 0 0;
   border-radius: 0.375rem;
   font-family: 'Fira Code', monospace;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  overflow-x: auto;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-x: hidden;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
   margin: 0;
-  align-items: center;
   width: 100%;
-  height: 100%;
+  color: var(--background);
+  transition: opacity 0.2s ease;
 }
 
 @media (max-width: 768px) {
+  body {
+    padding: 0.75rem;
+    padding-top: 1rem;
+  }
+
   .form-signin {
-    padding: 1.5rem;
+    padding: 1.25rem;
   }
 
   .form-signin h1 {
-    font-size: 2rem;
+    font-size: 1.75rem;
+  }
+
+  .main-title {
+    margin-bottom: 1rem;
+  }
+
+  .fas {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .form-signin .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .btn {
+    padding: 0.5rem 1rem;
+  }
+
+  .form-control {
+    padding: 0.5rem 0.875rem;
   }
 }
 
@@ -277,6 +312,8 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
   border-radius: 0.375rem;
   border: none;
   width: 100%;
+  padding: 0.75rem 1rem;
+  transition: background-color 0.3s ease;
 }
 
 .alert-success {
@@ -309,4 +346,140 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 
 .alert-danger #response_body {
   color: var(--foreground);
+}
+
+.spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--foreground);
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spinner 0.6s linear infinite;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+
+@keyframes spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.copy-btn-float {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.35rem 0.5rem;
+  min-width: 90px;
+  height: 1.75rem;
+  justify-content: center;
+  background-color: var(--green);
+  color: var(--background);
+  border: 2px solid var(--background);
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  z-index: 10;
+}
+
+.copy-btn-float i {
+  color: var(--background);
+  font-size: 0.75rem;
+}
+
+.copy-btn-float:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.copy-btn-float:active {
+  transform: scale(0.95);
+}
+
+.copy-btn-float.copied {
+  background-color: var(--green);
+  border-color: var(--background);
+  color: var(--background);
+}
+
+#response_body a {
+  color: var(--background);
+  text-decoration: underline;
+  font-weight: 700;
+  transition: opacity 0.15s ease;
+}
+
+#response_body a:hover {
+  opacity: 0.8;
+}
+
+#response_body code {
+  background-color: rgba(0, 0, 0, 0.15);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-family: 'Fira Code', monospace;
+  font-weight: 600;
+}
+
+.form-control:focus-visible,
+.btn:focus-visible,
+.btn-link:focus-visible {
+  outline: 2px solid var(--pink);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+@keyframes checkmark {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotate(-45deg);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.1) rotate(0deg);
+  }
+
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.checkmark {
+  display: inline-block;
+  animation: checkmark 0.4s ease-out;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.icon-wrapper {
+  animation: pulse 3s ease-in-out infinite;
+}
+
+.alert-icon {
+  margin-right: 0.5rem;
+  font-size: 1rem;
 }
