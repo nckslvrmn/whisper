@@ -10,16 +10,15 @@
 <div id="textForm">
   <form onsubmit="postSecret(event)" id="form" class="p-3 form-signin">
     <div class="form-group">
-      <p class="font-weight-normal">Enter a password, secret message, or private link you wish to send
-        securely. A secret link only works for the number of times specified, then disappears forever.</p>
-    </div>
-    <div class="form-group">
-      <textarea type="text" name="secret" class="form-control" autocomplete="off" placeholder="content to be encrypted"
-        rows="6"></textarea>
+      <label for="secretText" class="form-label">Secret Content:</label>
+      <textarea type="text" id="secretText" name="secret" class="form-control" autocomplete="off"
+        placeholder="Enter your secret message, password, or link..." rows="4"
+        aria-label="Secret content to encrypt"></textarea>
     </div>
     <div class="form-group">
       <label for="ViewCount" class="form-label">View Count:</label>
-      <select name="view_count" class="form-control form-select" id="ViewCount">
+      <select name="view_count" class="form-control form-select" id="ViewCount"
+        aria-label="Number of times the secret can be viewed">
         <option selected>1</option>
         <option>2</option>
         <option>3</option>
@@ -34,7 +33,8 @@
     </div>
     <div class="form-group">
       <label for="TTLDays" class="form-label">Days Before Expiration:</label>
-      <select name="ttl_days" class="form-control form-select" id="TTLDays">
+      <select name="ttl_days" class="form-control form-select" id="TTLDays"
+        aria-label="Number of days before the secret expires">
         <option>1</option>
         <option>3</option>
         <option selected>7</option>
@@ -45,7 +45,8 @@
 
     {{if .AdvancedFeatures}}
     <div class="form-group">
-      <button class="btn btn-link text-decoration-none p-0 mb-2 text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false" aria-controls="advancedOptions">
+      <button class="btn btn-link text-decoration-none p-0 mb-2 text-muted" type="button" data-bs-toggle="collapse"
+        data-bs-target="#advancedOptions" aria-expanded="false" aria-controls="advancedOptions">
         ▸ I know what I'm doing
       </button>
       <div class="collapse" id="advancedOptions">
@@ -71,23 +72,26 @@
     {{end}}
 
     <div class="form-group">
-      <input type="submit" class="btn btn-primary w-100" value="Create Secret Link">
+      <button type="submit" class="btn btn-primary w-100" id="submitBtn" aria-label="Create secret link">
+        <span id="submitBtnText">Create Secret Link</span>
+      </button>
     </div>
   </form>
 </div>
 
 <!-- File Encryption Form -->
 <div id="fileForm" style="display: none;">
-  <p class="mt-5 px-3 font-weight-normal">Enter a file below you wish to send securely.<br /> The generated secret link
-    only works once to retrieve the file, then disappears forever.</p>
   <form onsubmit="postSecretFile(event)" id="fileFormElement" class="pt-3 px-3 form-signin">
     <div class="mb-3 form-group">
-      <input class="form-control" id="file" ref="file" type="file">
+      <label for="file" class="form-label">Select File:</label>
+      <input class="form-control" id="file" ref="file" type="file" aria-label="File to encrypt (max 10MB)">
+      <small class="form-text text-muted">Maximum file size: 10MB</small>
     </div>
 
     {{if .AdvancedFeatures}}
     <div class="form-group">
-      <button class="btn btn-link text-decoration-none p-0 mb-2 text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#advancedOptionsFile" aria-expanded="false" aria-controls="advancedOptionsFile">
+      <button class="btn btn-link text-decoration-none p-0 mb-2 text-muted" type="button" data-bs-toggle="collapse"
+        data-bs-target="#advancedOptionsFile" aria-expanded="false" aria-controls="advancedOptionsFile">
         ▸ I know what I'm doing
       </button>
       <div class="collapse" id="advancedOptionsFile">
@@ -114,7 +118,9 @@
 
     <br />
     <div class="form-group d-grid gap-2">
-      <input type="submit" class="btn btn-primary" value="Create Secret Link">
+      <button type="submit" class="btn btn-primary" id="submitBtnFile" aria-label="Create secret link for file">
+        <span id="submitBtnFileText">Create Secret Link</span>
+      </button>
     </div>
   </form>
 </div>
