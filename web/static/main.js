@@ -366,7 +366,8 @@ function copyToClipboard(elementId, button) {
   const element = document.getElementById(elementId);
   if (!element) return;
 
-  const text = element.textContent || element.innerText;
+  let text = element.textContent || element.innerText;
+  text = text.replace("Passphrase:", "\nPassphrase:");
   navigator.clipboard.writeText(text).then(() => {
     const originalHTML = button.innerHTML;
     button.innerHTML = '<i class="fas fa-check"></i> Copied!';
