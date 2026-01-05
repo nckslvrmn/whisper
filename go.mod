@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.53.5
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.94.0
 	github.com/labstack/echo/v4 v4.14.0
-	github.com/mattn/go-sqlite3 v1.14.32
+	github.com/mattn/go-sqlite3 v1.14.33
 	golang.org/x/crypto v0.46.0
 	google.golang.org/api v0.258.0
 	google.golang.org/grpc v1.77.0
