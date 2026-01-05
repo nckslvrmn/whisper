@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.6
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.53.5
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.94.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.95.0
 	github.com/labstack/echo/v4 v4.14.0
 	github.com/mattn/go-sqlite3 v1.14.32
 	golang.org/x/crypto v0.46.0
