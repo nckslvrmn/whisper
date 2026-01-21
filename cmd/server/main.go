@@ -63,6 +63,15 @@ func main() {
 	e.Static("/static", "web/static")
 	e.Renderer = t
 
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if len(c.Path()) >= 7 && c.Path()[:7] == "/static" {
+				c.Response().Header().Set("Cache-Control", "public, max-age=3600")
+			}
+			return next(c)
+		}
+	})
+
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
 	}))
