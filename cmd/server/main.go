@@ -91,7 +91,7 @@ func main() {
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
-	e.Use(middleware.TimeoutWithConfig(middleware.TimeoutConfig{
+	e.Use(middleware.ContextTimeoutWithConfig(middleware.ContextTimeoutConfig{
 		Timeout: 30 * time.Second,
 	}))
 
