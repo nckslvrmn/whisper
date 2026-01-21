@@ -23,24 +23,41 @@ type E2EData struct {
 	IsFile            bool   `json:"isFile"`
 }
 
+// Validate checks if the E2EData is valid for the given operation
+func (e *E2EData) Validate(isFile bool) error {
+	if e.PasswordHash == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "missing password hash")
+	}
+
+	if !validatePasswordHash(e.PasswordHash) {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid password hash format")
+	}
+
+	if isFile {
+		if e.EncryptedFile != "" && len(e.EncryptedFile) > MaxFileSize {
+			return echo.NewHTTPError(http.StatusBadRequest, "file size exceeds limit")
+		}
+	} else {
+		if e.EncryptedData == "" {
+			return echo.NewHTTPError(http.StatusBadRequest, "missing encrypted data")
+		}
+		if len(e.EncryptedData) > MaxTextSize {
+			return echo.NewHTTPError(http.StatusBadRequest, "text size exceeds limit")
+		}
+	}
+
+	return nil
+}
+
 func EncryptString(c echo.Context) error {
 	var data E2EData
 
-	err := c.Bind(&data)
-	if err != nil {
+	if err := c.Bind(&data); err != nil {
 		return errorResponse(c, http.StatusBadRequest, "invalid request")
 	}
 
-	if data.PasswordHash == "" || data.EncryptedData == "" {
-		return errorResponse(c, http.StatusBadRequest, "missing required fields")
-	}
-
-	if !validatePasswordHash(data.PasswordHash) {
-		return errorResponse(c, http.StatusBadRequest, "invalid password hash format")
-	}
-
-	if len(data.EncryptedData) > MaxTextSize {
-		return errorResponse(c, http.StatusBadRequest, "text size exceeds limit")
+	if err := data.Validate(false); err != nil {
+		return err
 	}
 
 	return storeEncryptedData(c, &data, false)
@@ -49,24 +66,15 @@ func EncryptString(c echo.Context) error {
 func EncryptFile(c echo.Context) error {
 	var data E2EData
 
-	err := c.Bind(&data)
-	if err != nil {
+	if err := c.Bind(&data); err != nil {
 		return errorResponse(c, http.StatusBadRequest, "invalid request")
 	}
 
-	if data.PasswordHash == "" {
-		return errorResponse(c, http.StatusBadRequest, "missing required fields")
-	}
-
-	if !validatePasswordHash(data.PasswordHash) {
-		return errorResponse(c, http.StatusBadRequest, "invalid password hash format")
+	if err := data.Validate(true); err != nil {
+		return err
 	}
 
 	if data.EncryptedFile != "" {
-		if len(data.EncryptedFile) > MaxFileSize {
-			return errorResponse(c, http.StatusBadRequest, "file size exceeds limit")
-		}
-
 		secretId := utils.RandString(16, true)
 		fileStore := storage.GetFileStore()
 		if err := fileStore.StoreEncryptedFile(secretId, []byte(data.EncryptedFile)); err != nil {

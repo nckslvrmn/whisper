@@ -12,80 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type FirestoreClientInterface interface {
-	Collection(path string) CollectionRefInterface
-	Close() error
-}
-
-type CollectionRefInterface interface {
-	Doc(id string) DocumentRefInterface
-}
-
-type DocumentRefInterface interface {
-	Get(ctx context.Context) (DocumentSnapshotInterface, error)
-	Set(ctx context.Context, data any) (*firestore.WriteResult, error)
-	Delete(ctx context.Context, opts ...firestore.Precondition) (*firestore.WriteResult, error)
-	Update(ctx context.Context, updates []firestore.Update, opts ...firestore.Precondition) (*firestore.WriteResult, error)
-}
-
-type DocumentSnapshotInterface interface {
-	Data() map[string]any
-}
-
-type firestoreClientWrapper struct {
-	client *firestore.Client
-}
-
-func (f *firestoreClientWrapper) Collection(path string) CollectionRefInterface {
-	return &collectionRefWrapper{collection: f.client.Collection(path)}
-}
-
-func (f *firestoreClientWrapper) Close() error {
-	return f.client.Close()
-}
-
-type collectionRefWrapper struct {
-	collection *firestore.CollectionRef
-}
-
-func (c *collectionRefWrapper) Doc(id string) DocumentRefInterface {
-	return &documentRefWrapper{doc: c.collection.Doc(id)}
-}
-
-type documentRefWrapper struct {
-	doc *firestore.DocumentRef
-}
-
-func (d *documentRefWrapper) Get(ctx context.Context) (DocumentSnapshotInterface, error) {
-	snapshot, err := d.doc.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &documentSnapshotWrapper{snapshot: snapshot}, nil
-}
-
-func (d *documentRefWrapper) Set(ctx context.Context, data any) (*firestore.WriteResult, error) {
-	return d.doc.Set(ctx, data)
-}
-
-func (d *documentRefWrapper) Delete(ctx context.Context, opts ...firestore.Precondition) (*firestore.WriteResult, error) {
-	return d.doc.Delete(ctx, opts...)
-}
-
-func (d *documentRefWrapper) Update(ctx context.Context, updates []firestore.Update, opts ...firestore.Precondition) (*firestore.WriteResult, error) {
-	return d.doc.Update(ctx, updates, opts...)
-}
-
-type documentSnapshotWrapper struct {
-	snapshot *firestore.DocumentSnapshot
-}
-
-func (d *documentSnapshotWrapper) Data() map[string]any {
-	return d.snapshot.Data()
-}
-
 type FirestoreStore struct {
-	client FirestoreClientInterface
+	client *firestore.Client
 }
 
 func NewFirestoreStore() (storagetypes.SecretStore, error) {
@@ -96,7 +24,7 @@ func NewFirestoreStore() (storagetypes.SecretStore, error) {
 	}
 
 	return &FirestoreStore{
-		client: &firestoreClientWrapper{client: client},
+		client: client,
 	}, nil
 }
 
@@ -126,7 +54,7 @@ func (f *FirestoreStore) StoreSecretRaw(secretId string, data []byte, ttl *int64
 func (f *FirestoreStore) GetSecretRaw(secretId string) ([]byte, error) {
 	ctx := context.Background()
 
-	doc, err := f.client.Collection(config.FirestoreDatabase).Doc(secretId).Get(ctx)
+	snapshot, err := f.client.Collection(config.FirestoreDatabase).Doc(secretId).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return nil, fmt.Errorf("secret not found")
@@ -134,7 +62,7 @@ func (f *FirestoreStore) GetSecretRaw(secretId string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to get secret from Firestore: %w", err)
 	}
 
-	docData := doc.Data()
+	docData := snapshot.Data()
 
 	if encData, ok := docData["data"].(string); ok {
 		data, err := utils.B64D(encData)

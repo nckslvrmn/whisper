@@ -7,6 +7,7 @@ import (
 
 	echo "github.com/labstack/echo/v4"
 	"github.com/nckslvrmn/whisper/internal/storage"
+	"github.com/nckslvrmn/whisper/internal/storage/types"
 )
 
 func Decrypt(c echo.Context) error {
@@ -72,8 +73,9 @@ func Decrypt(c echo.Context) error {
 		"isFile":            isFile,
 	}
 
+	var fileStore types.FileStore
 	if isFile {
-		fileStore := storage.GetFileStore()
+		fileStore = storage.GetFileStore()
 		encryptedFile, err := fileStore.GetEncryptedFile(requestData.SecretId)
 		if err == nil {
 			response["encryptedFile"] = string(encryptedFile)
@@ -89,8 +91,7 @@ func Decrypt(c echo.Context) error {
 			viewCount--
 			if viewCount == 0 {
 				secretStore.DeleteSecret(requestData.SecretId)
-				if isFile {
-					fileStore := storage.GetFileStore()
+				if isFile && fileStore != nil {
 					fileStore.DeleteFile(requestData.SecretId)
 				}
 			} else {

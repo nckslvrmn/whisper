@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -52,26 +51,10 @@ func main() {
 		e.Logger.Fatal(err)
 	}
 
-	var wg sync.WaitGroup
-	templates := make(map[string]*template.Template)
-	var mu sync.Mutex
-
-	templateList := map[string][]string{
-		"index":  {"web/templates/layout.html", "web/templates/index.html"},
-		"secret": {"web/templates/layout.html", "web/templates/secret.html"},
+	templates := map[string]*template.Template{
+		"index":  template.Must(template.ParseFiles("web/templates/layout.html", "web/templates/index.html")),
+		"secret": template.Must(template.ParseFiles("web/templates/layout.html", "web/templates/secret.html")),
 	}
-
-	for name, files := range templateList {
-		wg.Add(1)
-		go func(n string, f []string) {
-			defer wg.Done()
-			tmpl := template.Must(template.ParseFiles(f...))
-			mu.Lock()
-			templates[n] = tmpl
-			mu.Unlock()
-		}(name, files)
-	}
-	wg.Wait()
 
 	t := &TemplateRegistry{
 		templates: templates,

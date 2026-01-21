@@ -5,7 +5,6 @@ import (
 	"regexp"
 
 	echo "github.com/labstack/echo/v4"
-	"github.com/nckslvrmn/whisper/pkg/utils"
 )
 
 const (
@@ -16,8 +15,6 @@ const (
 var (
 	secretIDRegex     = regexp.MustCompile(`^[a-zA-Z0-9]{16}$`)
 	passwordHashRegex = regexp.MustCompile(`^[a-f0-9]{64}$`)
-	SanitizeViewCount = utils.SanitizeViewCount
-	SanitizeTTL       = utils.SanitizeTTL
 )
 
 func errorResponse(c echo.Context, code int, message string) error {

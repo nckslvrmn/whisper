@@ -1,15 +1,17 @@
 :root {
-  --background: #282A36;
+  --background: #22212C;
   --current-line: #44475A;
   --foreground: #F8F8F2;
-  --comment: #6272A4;
-  --cyan: #8BE9FD;
-  --green: #50FA7B;
-  --orange: #FFB86C;
-  --pink: #FF79C6;
+  --comment: #7970A9;
+  --cyan: #80FFEA;
+  --green: #8AFF80;
+  --orange: #FFCA80;
+  --pink: #FF80BF;
   --purple: #BD93F9;
-  --red: #FF5555;
-  --yellow: #F1FA8C;
+  --blue: #9580FF;
+  --red: #FF9580;
+  --yellow: #FFFF80;
+  --white: #F8F8F2;
 }
 
 html {
@@ -482,4 +484,196 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 .alert-icon {
   margin-right: 0.5rem;
   font-size: 1rem;
+}
+
+.btn-group label {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+#textToggleLabel,
+#fileToggleLabel {
+  background-color: transparent;
+  border: 1px solid var(--purple);
+  color: var(--purple);
+}
+
+#textToggleLabel:hover,
+#fileToggleLabel:hover {
+  box-shadow: inset 0 0 0 1px var(--purple);
+}
+
+#fileForm {
+  display: none;
+}
+
+#textToggle:checked~.btn-group #textToggleLabel {
+  background-color: var(--purple);
+  border: 1px solid var(--purple);
+  color: white;
+}
+
+#textToggle:checked~.btn-group #textToggleLabel:hover {
+  box-shadow: inset 0 0 0 2px var(--pink);
+}
+
+#textToggle:checked~.btn-group #fileToggleLabel {
+  background-color: transparent;
+  border: 1px solid var(--purple);
+  color: var(--purple);
+}
+
+#textToggle:checked~.btn-group #fileToggleLabel:hover {
+  box-shadow: inset 0 0 0 1px var(--purple);
+}
+
+#textToggle:checked~#textForm {
+  display: block;
+  animation: fadeIn 0.3s ease;
+}
+
+#textToggle:checked~#fileForm {
+  display: none;
+}
+
+#fileToggle:checked~.btn-group #fileToggleLabel {
+  background-color: var(--purple);
+  border: 1px solid var(--purple);
+  color: white;
+}
+
+#fileToggle:checked~.btn-group #fileToggleLabel:hover {
+  box-shadow: inset 0 0 0 2px var(--pink);
+}
+
+#fileToggle:checked~.btn-group #textToggleLabel {
+  background-color: transparent;
+  border: 1px solid var(--purple);
+  color: var(--purple);
+}
+
+#fileToggle:checked~.btn-group #textToggleLabel:hover {
+  box-shadow: inset 0 0 0 1px var(--purple);
+}
+
+#fileToggle:checked~#textForm {
+  display: none;
+}
+
+#fileToggle:checked~#fileForm {
+  display: block;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.btn {
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:hover {
+  box-shadow: inset 0 0 0 1px var(--purple);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--purple);
+  outline-offset: 2px;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--purple);
+  box-shadow: 0 0 0 3px rgba(189, 147, 249, 0.2);
+  transform: translateY(-1px);
+}
+
+.form-control,
+.form-select,
+input[type="file"] {
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--purple);
+  border: none;
+  font-weight: 700;
+}
+
+.btn-primary:hover {
+  background: var(--pink);
+  box-shadow: 0 4px 12px rgba(189, 147, 249, 0.3);
+}
+
+.btn-outline-primary:hover {
+  background: rgba(189, 147, 249, 0.1);
+  transform: translateY(-1px);
+}
+
+.copy-btn-float,
+.btn-outline-secondary {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.copied {
+  background-color: var(--green) !important;
+  border-color: var(--green) !important;
+  color: white !important;
+  animation: successPulse 0.5s ease;
+}
+
+@keyframes successPulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+#results {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#results.active {
+  animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.advanced-toggle .arrow::before {
+  content: '▸';
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.advanced-toggle[aria-expanded="true"] .arrow::before {
+  content: '▾';
 }

@@ -59,7 +59,6 @@ function getTTLConfig(disableTTLId, disableViewCountId, exactTTLId, defaultViewC
   return { viewCount, ttlDays, ttlTimestamp };
 }
 
-// Helper to convert ArrayBuffer to base64
 function arrayBufferToBase64(buffer) {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -71,7 +70,6 @@ function arrayBufferToBase64(buffer) {
   return btoa(binary);
 }
 
-// Helper to convert base64 to Blob
 function base64ToBlob(base64, type) {
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
@@ -81,7 +79,6 @@ function base64ToBlob(base64, type) {
   return new Blob([bytes], { type });
 }
 
-// Helper for fetch requests
 async function postJSON(url, data) {
   const response = await fetch(url, {
     method: 'POST',
@@ -98,10 +95,10 @@ async function postJSON(url, data) {
   return response.json();
 }
 
-// Common encryption handler
 async function handleEncryption(encryptFn, endpoint, extraData = {}) {
   const submitBtn = extraData.isFile ? document.getElementById('submitBtnFile') : document.getElementById('submitBtn');
   const submitBtnText = extraData.isFile ? document.getElementById('submitBtnFileText') : document.getElementById('submitBtnText');
+  let infoToast = null;
 
   try {
     await initWASM();
@@ -111,7 +108,10 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
       submitBtnText.innerHTML = '<span class="spinner"></span>Encrypting...';
     }
 
-    setResp('processing', '<span class="spinner"></span>Encrypting...', false);
+    infoToast = toast.open({
+      type: 'info',
+      message: 'Encrypting your secret...'
+    });
 
     const result = encryptFn();
     if (result.error) throw new Error(result.error);
@@ -128,6 +128,8 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
       ...(result.encryptedFile && { encryptedFile: result.encryptedFile, encryptedMetadata: result.encryptedMetadata })
     });
 
+    if (infoToast) toast.dismiss(infoToast);
+
     const secret_link = `${window.location.origin}/secret/${responseData.secretId}`;
     const contentId = 'secretContent_' + Date.now();
 
@@ -140,9 +142,13 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
 
     clearForm(extraData.isFile);
     scrollToResults();
+
+    toast.success('Secret created successfully!');
   } catch (error) {
     console.error('Error:', error);
-    setResp('alert', `<i class="fas fa-exclamation-circle alert-icon"></i>There was an error encrypting the ${extraData.isFile ? 'file' : 'secret'}`, false);
+    if (infoToast) toast.dismiss(infoToast);
+    toast.error(`Failed to encrypt ${extraData.isFile ? 'file' : 'secret'}`);
+
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -156,11 +162,13 @@ async function postSecretFile(event) {
 
   const file = document.getElementById('file').files[0];
   if (!file) {
-    return setResp('warning', 'Please select a file', true);
+    toast.error('Please select a file');
+    return;
   }
 
   if ((file.size / (1024 * 1024)) > 10) {
-    return setResp('warning', 'File size exceeds 10MB limit', true);
+    toast.error('File size exceeds 10MB limit');
+    return;
   }
 
   const { viewCount, ttlDays, ttlTimestamp } = getTTLConfig(
@@ -184,14 +192,16 @@ async function postSecret(event) {
 
   const form = document.getElementById("form");
   if (!form) {
-    return setResp('alert', 'Form not found', true);
+    toast.error('Form not found');
+    return;
   }
 
   const formData = new FormData(form);
   const secret = formData.get('secret');
 
   if (!secret) {
-    return setResp('warning', 'Please enter a secret', true);
+    toast.error('Please enter a secret');
+    return;
   }
 
   const { viewCount, ttlDays, ttlTimestamp } = getTTLConfig(
@@ -217,15 +227,19 @@ async function getSecret(event) {
   const secretId = window.location.pathname.split('/').pop();
 
   if (!passphrase) {
-    return setResp('warning', '<i class="fas fa-exclamation-triangle alert-icon"></i>Please enter the passphrase', false);
+    toast.error('Please enter the passphrase');
+    return;
   }
 
   const form = document.getElementById('form');
+  let infoToast = null;
 
   try {
     await initWASM();
-    setResp('processing', '<span class="spinner"></span>Decrypting...', false);
-
+    infoToast = toast.open({
+      type: 'info',
+      message: 'Decrypting your secret...'
+    });
     scrollToResults();
 
     const saltData = await postJSON('/decrypt', {
@@ -243,6 +257,8 @@ async function getSecret(event) {
       if (err.message === 'NotFound') throw new Error('Secret not found or already viewed');
       throw new Error('Error retrieving the secret');
     });
+
+    if (infoToast) toast.dismiss(infoToast);
 
     if (data.isFile) {
       const result = wasmCrypto.decryptFile(
@@ -267,6 +283,7 @@ async function getSecret(event) {
       setTimeout(() => URL.revokeObjectURL(url), TIMEOUTS.FOCUS_DELAY);
 
       setResp('success', `<span class="checkmark">✓</span> File "${result.fileName}" downloaded successfully`, false);
+      toast.success('File downloaded successfully');
     } else {
       const result = wasmCrypto.decryptText(
         data.encryptedData,
@@ -283,6 +300,7 @@ async function getSecret(event) {
         <i class="fas fa-copy"></i> Copy
       </button>`, false);
       scrollToResults();
+      toast.success('Secret decrypted successfully!');
     }
 
     if (form) {
@@ -292,14 +310,11 @@ async function getSecret(event) {
     }
   } catch (error) {
     console.error('Error:', error);
-    const icon = error.message.includes('passphrase') || error.message.includes('not found') ?
-      '<i class="fas fa-exclamation-triangle alert-icon"></i>' :
-      '<i class="fas fa-exclamation-circle alert-icon"></i>';
+    if (infoToast) toast.dismiss(infoToast);
     const message = error.message.includes('passphrase') ? 'Invalid passphrase' :
       error.message.includes('not found') ? error.message :
         'There was an error decrypting the secret';
-    setResp(error.message.includes('passphrase') || error.message.includes('not found') ? 'warning' : 'alert',
-      icon + message, false);
+    toast.error(message);
   }
 }
 
@@ -368,18 +383,26 @@ function copyToClipboard(elementId, button) {
 
   let text = element.textContent || element.innerText;
   text = text.replace("Passphrase:", "\nPassphrase:");
+
   navigator.clipboard.writeText(text).then(() => {
     const originalHTML = button.innerHTML;
+
     button.innerHTML = '<i class="fas fa-check"></i> Copied!';
     button.classList.add('copied');
+    button.style.transform = 'scale(1.05)';
+
+    toast.success('Copied to clipboard!');
 
     setTimeout(() => {
       button.innerHTML = originalHTML;
       button.classList.remove('copied');
+      button.style.transform = '';
     }, TIMEOUTS.COPY_RESET);
   }).catch(err => {
     console.error('Failed to copy:', err);
     button.innerHTML = '<i class="fas fa-times"></i> Failed';
+    toast.error('Failed to copy to clipboard');
+
     setTimeout(() => {
       button.innerHTML = '<i class="fas fa-copy"></i> Copy';
     }, TIMEOUTS.COPY_RESET);
@@ -396,39 +419,6 @@ function clearForm(isFile) {
   }
 }
 
-function toggleEncryptionType(type) {
-  const elements = {
-    textForm: document.getElementById('textForm'),
-    fileForm: document.getElementById('fileForm'),
-    textToggle: document.getElementById('textToggle'),
-    fileToggle: document.getElementById('fileToggle')
-  };
-
-  const isText = type === 'text';
-  elements.textForm.style.display = isText ? 'block' : 'none';
-  elements.fileForm.style.display = isText ? 'none' : 'block';
-
-  elements.textToggle.classList.toggle('btn-primary', isText);
-  elements.textToggle.classList.toggle('btn-outline-primary', !isText);
-  elements.fileToggle.classList.toggle('btn-primary', !isText);
-  elements.fileToggle.classList.toggle('btn-outline-primary', isText);
-
-  clearForm(!isText);
-
-  const results = document.getElementById('results');
-  if (results) results.classList.remove('active');
-
-  setTimeout(() => {
-    if (isText) {
-      const textarea = document.getElementById('secretText');
-      if (textarea) textarea.focus();
-    } else {
-      const fileInput = document.getElementById('file');
-      if (fileInput) fileInput.focus();
-    }
-  }, TIMEOUTS.FOCUS_DELAY);
-}
-
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     await initWASM();
@@ -439,30 +429,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('type') === 'file') {
-    toggleEncryptionType('file');
-  }
-
-  const advancedOptionsText = document.getElementById('advancedOptions');
-  const advancedOptionsFile = document.getElementById('advancedOptionsFile');
-
-  if (advancedOptionsText) {
-    const textButton = document.querySelector('[data-bs-target="#advancedOptions"]');
-    advancedOptionsText.addEventListener('show.bs.collapse', () => {
-      if (textButton) textButton.textContent = '▾ I know what I\'m doing';
-    });
-    advancedOptionsText.addEventListener('hide.bs.collapse', () => {
-      if (textButton) textButton.textContent = '▸ I know what I\'m doing';
-    });
-  }
-
-  if (advancedOptionsFile) {
-    const fileButton = document.querySelector('[data-bs-target="#advancedOptionsFile"]');
-    advancedOptionsFile.addEventListener('show.bs.collapse', () => {
-      if (fileButton) fileButton.textContent = '▾ I know what I\'m doing';
-    });
-    advancedOptionsFile.addEventListener('hide.bs.collapse', () => {
-      if (fileButton) fileButton.textContent = '▸ I know what I\'m doing';
-    });
+    document.getElementById('fileToggle').checked = true;
   }
 
   const textarea = document.getElementById('secretText');

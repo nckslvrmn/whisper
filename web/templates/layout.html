@@ -8,18 +8,19 @@
   <meta name="theme-color" content="#4299E1">
   <title>{{.ProjectName}}: Secure Secret Sharing</title>
 
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap"
     rel="stylesheet">
 
-  <!-- Stylesheets -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/css/bootstrap.min.css"
     integrity="sha512-2bBQCjcnw658Lho4nlXJcc6WkV/UxpE/sAokbXPxQNGqmNdQrWqtw26Ns9kFF/yG792pKR1Sx8/Y1Lf1XN4GKA=="
     crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
     integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/notyf/3.10.0/notyf.min.css"
+    integrity="sha512-ZX18S8AwqoIm9QCd1EYun82IryFikdJt7lxj6583zx5Rvr5HoreO9tWY6f2VhSxvK+48vYFSf4zFtX/t2ge62g=="
     crossorigin="anonymous" referrerpolicy="no-referrer" />
   <link rel="stylesheet" href="/static/site.css" />
 </head>
@@ -43,10 +44,61 @@
     </div>
   </div>
 
-  <!-- Scripts -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"
     integrity="sha512-7Pi/otdlbbCR+LnW+F7PwFcSDJOuUJB3OxtEHbg4vSMvzvJjde4Po1v4BR9Gdc9aXNUNFVUY+SK51wWT8WF0Gg=="
     crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/notyf/3.10.0/notyf.min.js"
+    integrity="sha512-467grL09I/ffq86LVdwDzi86uaxuAhFZyjC99D6CC1vghMp1YAs+DqCgRvhEtZIKX+o9lR0F2bro6qniyeCMEQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+    window.toast = new Notyf({
+      duration: 5000,
+      position: { x: 'right', y: 'top' },
+      dismissible: true,
+      ripple: true,
+      types: [
+        {
+          type: 'success',
+          background: '#8AFF80',
+          className: 'notyf-success-dark',
+          icon: {
+            className: 'fas fa-check',
+            tagName: 'i',
+            color: '#22212C'
+          }
+        },
+        {
+          type: 'error',
+          background: '#FF9580',
+          icon: {
+            className: 'fas fa-exclamation-triangle',
+            tagName: 'i',
+            color: '#22212C'
+          }
+        },
+        {
+          type: 'info',
+          background: '#9580FF',
+          icon: {
+            className: 'fas fa-spinner fa-spin',
+            tagName: 'i',
+            color: 'white'
+          }
+        }
+      ]
+    });
+  </script>
+  <style>
+    .notyf-success-dark .notyf__message,
+    .notyf__toast--error .notyf__message {
+      color: #22212C !important;
+    }
+
+    .notyf-success-dark .notyf__dismiss-btn,
+    .notyf__toast--error .notyf__dismiss-btn {
+      background-color: #22212C !important;
+    }
+  </style>
   <script src="/static/wasm_exec.js"></script>
   <script src="/static/main.js"></script>
 </body>
