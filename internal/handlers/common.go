@@ -1,10 +1,7 @@
 package handlers
 
 import (
-	"net/http"
 	"regexp"
-
-	echo "github.com/labstack/echo/v4"
 )
 
 const (
@@ -16,23 +13,6 @@ var (
 	secretIDRegex     = regexp.MustCompile(`^[a-zA-Z0-9]{16}$`)
 	passwordHashRegex = regexp.MustCompile(`^[a-f0-9]{64}$`)
 )
-
-func errorResponse(c echo.Context, code int, message string) error {
-	if code >= 500 {
-		c.Logger().Error(message)
-	}
-
-	genericMessage := message
-	if code == http.StatusInternalServerError {
-		genericMessage = "An internal error occurred"
-	}
-
-	return c.JSON(code, map[string]string{"error": genericMessage})
-}
-
-func successResponse(c echo.Context, data map[string]string) error {
-	return c.JSON(http.StatusOK, data)
-}
 
 func validateSecretID(id string) bool {
 	return secretIDRegex.MatchString(id)

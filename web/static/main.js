@@ -105,7 +105,7 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
 
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtnText.innerHTML = '<span class="spinner"></span>Encrypting...';
+      submitBtnText.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Encrypting...';
     }
 
     infoToast = toast.open({
@@ -304,8 +304,8 @@ async function getSecret(event) {
     }
 
     if (form) {
-      form.style.transition = 'opacity 0.3s ease';
-      form.style.opacity = '0';
+      form.classList.add('fade');
+      form.classList.remove('show');
       setTimeout(() => form.remove(), TIMEOUTS.FORM_REMOVE);
     }
   } catch (error) {
@@ -337,14 +337,14 @@ function setResp(level, content, text_resp) {
   const isAlreadyActive = results.classList.contains('active');
 
   if (isAlreadyActive) {
-    responseBody.style.transition = 'opacity 0.2s ease';
-    responseBody.style.opacity = '0';
+    responseBody.classList.add('fade');
+    responseBody.classList.remove('show');
 
     setTimeout(() => {
       response.className = newClass;
       response.setAttribute('role', 'alert');
       responseBody[text_resp ? 'innerText' : 'innerHTML'] = content;
-      responseBody.style.opacity = '1';
+      responseBody.classList.add('show');
     }, TIMEOUTS.FADE_TRANSITION);
   } else {
     response.className = newClass;
@@ -429,7 +429,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('type') === 'file') {
-    document.getElementById('fileToggle').checked = true;
+    const fileTab = new bootstrap.Tab(document.getElementById('file-tab'));
+    fileTab.show();
   }
 
   const textarea = document.getElementById('secretText');

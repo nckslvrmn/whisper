@@ -1,134 +1,139 @@
 {{define "content"}}
 <div class="encryption-type-wrapper">
-  <input type="radio" name="encryptionType" id="textToggle" value="text" checked hidden>
-  <input type="radio" name="encryptionType" id="fileToggle" value="file" hidden>
+  <ul class="nav nav-pills nav-fill mb-4" id="encryptionTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="text-tab" data-bs-toggle="pill" data-bs-target="#textForm" type="button"
+        role="tab" aria-controls="textForm" aria-selected="true">
+        Text Encryption
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="file-tab" data-bs-toggle="pill" data-bs-target="#fileForm" type="button" role="tab"
+        aria-controls="fileForm" aria-selected="false">
+        File Encryption
+      </button>
+    </li>
+  </ul>
 
-  <div class="btn-group w-100 mb-4" role="group" aria-label="Encryption type">
-    <label for="textToggle" class="btn" id="textToggleLabel">
-      Text Encryption
-    </label>
-    <label for="fileToggle" class="btn" id="fileToggleLabel">
-      File Encryption
-    </label>
-  </div>
+  <div class="tab-content" id="encryptionTabContent">
+    <div class="tab-pane fade show active" id="textForm" role="tabpanel" aria-labelledby="text-tab">
+      <form onsubmit="postSecret(event)" id="form" class="p-3 form-signin">
+        <div class="form-group">
+          <label for="secretText" class="form-label">Secret Content:</label>
+          <textarea type="text" id="secretText" name="secret" class="form-control" autocomplete="off"
+            placeholder="Enter your secret message, password, or link..." rows="4"
+            aria-label="Secret content to encrypt"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="ViewCount" class="form-label">View Count:</label>
+          <select name="view_count" class="form-control form-select" id="ViewCount"
+            aria-label="Number of times the secret can be viewed">
+            <option selected>1</option>
+            <option>2</option>
+            <option>3</option>
+            <option>4</option>
+            <option>5</option>
+            <option>6</option>
+            <option>7</option>
+            <option>8</option>
+            <option>9</option>
+            <option>10</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="TTLDays" class="form-label">Days Before Expiration:</label>
+          <select name="ttl_days" class="form-control form-select" id="TTLDays"
+            aria-label="Number of days before the secret expires">
+            <option>1</option>
+            <option>3</option>
+            <option selected>7</option>
+            <option>14</option>
+            <option>30</option>
+          </select>
+        </div>
 
-  <div id="textForm" class="encryption-form" data-form="text">
-    <form onsubmit="postSecret(event)" id="form" class="p-3 form-signin">
-      <div class="form-group">
-        <label for="secretText" class="form-label">Secret Content:</label>
-        <textarea type="text" id="secretText" name="secret" class="form-control" autocomplete="off"
-          placeholder="Enter your secret message, password, or link..." rows="4"
-          aria-label="Secret content to encrypt"></textarea>
-      </div>
-      <div class="form-group">
-        <label for="ViewCount" class="form-label">View Count:</label>
-        <select name="view_count" class="form-control form-select" id="ViewCount"
-          aria-label="Number of times the secret can be viewed">
-          <option selected>1</option>
-          <option>2</option>
-          <option>3</option>
-          <option>4</option>
-          <option>5</option>
-          <option>6</option>
-          <option>7</option>
-          <option>8</option>
-          <option>9</option>
-          <option>10</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="TTLDays" class="form-label">Days Before Expiration:</label>
-        <select name="ttl_days" class="form-control form-select" id="TTLDays"
-          aria-label="Number of days before the secret expires">
-          <option>1</option>
-          <option>3</option>
-          <option selected>7</option>
-          <option>14</option>
-          <option>30</option>
-        </select>
-      </div>
-
-      {{if .AdvancedFeatures}}
-      <div class="form-group">
-        <button class="btn btn-link text-decoration-none p-0 mb-2 text-muted advanced-toggle" type="button"
-          data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false"
-          aria-controls="advancedOptions">
-          <span class="arrow"></span> I know what I'm doing
-        </button>
-        <div class="collapse" id="advancedOptions">
-          <div class="form-check mb-2">
-            <input class="form-check-input" type="checkbox" id="disableTTL" name="disable_ttl">
-            <label class="form-check-label" for="disableTTL">
-              Disable expiration (secret never expires)
-            </label>
-          </div>
-          <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" id="disableViewCount" name="disable_view_count">
-            <label class="form-check-label" for="disableViewCount">
-              Disable view count (only rely on expiration)
-            </label>
-          </div>
-          <div class="form-group">
-            <label for="exactTTL" class="form-label">Or set exact expiration date/time:</label>
-            <input type="datetime-local" class="form-control" id="exactTTL" name="exact_ttl">
-            <small class="form-text text-muted">Leave empty to use days before expiration above</small>
+        {{if .AdvancedFeatures}}
+        <div class="form-group">
+          <button class="btn btn-link text-decoration-none p-0 mb-2 text-muted advanced-toggle" type="button"
+            data-bs-toggle="collapse" data-bs-target="#advancedOptions" aria-expanded="false"
+            aria-controls="advancedOptions">
+            <span class="arrow"></span> I know what I'm doing
+          </button>
+          <div class="collapse" id="advancedOptions">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" id="disableTTL" name="disable_ttl">
+              <label class="form-check-label" for="disableTTL">
+                Disable expiration (secret never expires)
+              </label>
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="disableViewCount" name="disable_view_count">
+              <label class="form-check-label" for="disableViewCount">
+                Disable view count (only rely on expiration)
+              </label>
+            </div>
+            <div class="form-group">
+              <label for="exactTTL" class="form-label">Or set exact expiration date/time:</label>
+              <input type="datetime-local" class="form-control" id="exactTTL" name="exact_ttl">
+              <small class="form-text text-muted">Leave empty to use days before expiration above</small>
+            </div>
           </div>
         </div>
-      </div>
-      {{end}}
+        {{end}}
 
-      <div class="form-group">
-        <button type="submit" class="btn btn-primary w-100" id="submitBtn" aria-label="Create secret link">
-          <span id="submitBtnText">Create Secret Link</span>
-        </button>
-      </div>
-    </form>
-  </div>
+        <div class="form-group">
+          <button type="submit" class="btn btn-primary w-100" id="submitBtn" aria-label="Create secret link">
+            <span id="submitBtnText">Create Secret Link</span>
+          </button>
+        </div>
+      </form>
+    </div>
 
-  <div id="fileForm" class="encryption-form" data-form="file">
-    <form onsubmit="postSecretFile(event)" id="fileFormElement" class="pt-3 px-3 form-signin">
-      <div class="mb-3 form-group">
-        <label for="file" class="form-label">Select File:</label>
-        <input class="form-control" id="file" ref="file" type="file" aria-label="File to encrypt (max 10MB)">
-        <small class="form-text text-muted">Maximum file size: 10MB</small>
-      </div>
+    <div class="tab-pane fade" id="fileForm" role="tabpanel" aria-labelledby="file-tab">
+      <form onsubmit="postSecretFile(event)" id="fileFormElement" class="pt-3 px-3 form-signin">
+        <div class="mb-3 form-group">
+          <label for="file" class="form-label">Select File:</label>
+          <input class="form-control" id="file" ref="file" type="file" aria-label="File to encrypt (max 10MB)">
+          <small class="form-text text-muted">Maximum file size: 10MB</small>
+        </div>
 
-      {{if .AdvancedFeatures}}
-      <div class="form-group">
-        <button class="btn btn-link text-decoration-none p-0 mb-2 text-muted advanced-toggle" type="button"
-          data-bs-toggle="collapse" data-bs-target="#advancedOptionsFile" aria-expanded="false"
-          aria-controls="advancedOptionsFile">
-          <span class="arrow"></span> I know what I'm doing
-        </button>
-        <div class="collapse" id="advancedOptionsFile">
-          <div class="form-check mb-2">
-            <input class="form-check-input" type="checkbox" id="disableTTLFile" name="disable_ttl">
-            <label class="form-check-label" for="disableTTLFile">
-              Disable expiration (file never expires)
-            </label>
-          </div>
-          <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" id="disableViewCountFile" name="disable_view_count">
-            <label class="form-check-label" for="disableViewCountFile">
-              Disable view count (only rely on expiration)
-            </label>
-          </div>
-          <div class="form-group">
-            <label for="exactTTLFile" class="form-label">Or set exact expiration date/time:</label>
-            <input type="datetime-local" class="form-control" id="exactTTLFile" name="exact_ttl">
-            <small class="form-text text-muted">Leave empty for default 7 day expiration</small>
+        {{if .AdvancedFeatures}}
+        <div class="form-group">
+          <button class="btn btn-link text-decoration-none p-0 mb-2 text-muted advanced-toggle" type="button"
+            data-bs-toggle="collapse" data-bs-target="#advancedOptionsFile" aria-expanded="false"
+            aria-controls="advancedOptionsFile">
+            <span class="arrow"></span> I know what I'm doing
+          </button>
+          <div class="collapse" id="advancedOptionsFile">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" id="disableTTLFile" name="disable_ttl">
+              <label class="form-check-label" for="disableTTLFile">
+                Disable expiration (file never expires)
+              </label>
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="disableViewCountFile" name="disable_view_count">
+              <label class="form-check-label" for="disableViewCountFile">
+                Disable view count (only rely on expiration)
+              </label>
+            </div>
+            <div class="form-group">
+              <label for="exactTTLFile" class="form-label">Or set exact expiration date/time:</label>
+              <input type="datetime-local" class="form-control" id="exactTTLFile" name="exact_ttl">
+              <small class="form-text text-muted">Leave empty for default 7 day expiration</small>
+            </div>
           </div>
         </div>
-      </div>
-      {{end}}
+        {{end}}
 
-      <br />
-      <div class="form-group d-grid gap-2">
-        <button type="submit" class="btn btn-primary" id="submitBtnFile" aria-label="Create secret link for file">
-          <span id="submitBtnFileText">Create Secret Link</span>
-        </button>
-      </div>
-    </form>
+        <br />
+        <div class="form-group d-grid gap-2">
+          <button type="submit" class="btn btn-primary" id="submitBtnFile" aria-label="Create secret link for file">
+            <span id="submitBtnFileText">Create Secret Link</span>
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 

@@ -53,7 +53,7 @@ func EncryptString(c echo.Context) error {
 	var data E2EData
 
 	if err := c.Bind(&data); err != nil {
-		return errorResponse(c, http.StatusBadRequest, "invalid request")
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
 
 	if err := data.Validate(false); err != nil {
@@ -67,7 +67,7 @@ func EncryptFile(c echo.Context) error {
 	var data E2EData
 
 	if err := c.Bind(&data); err != nil {
-		return errorResponse(c, http.StatusBadRequest, "invalid request")
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
 
 	if err := data.Validate(true); err != nil {
@@ -78,7 +78,8 @@ func EncryptFile(c echo.Context) error {
 		secretId := utils.RandString(16, true)
 		fileStore := storage.GetFileStore()
 		if err := fileStore.StoreEncryptedFile(secretId, []byte(data.EncryptedFile)); err != nil {
-			return errorResponse(c, http.StatusInternalServerError, "error storing file")
+			c.Logger().Error("error storing file: ", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "error storing file")
 		}
 		return storeEncryptedDataWithId(c, &data, true, secretId)
 	}
@@ -93,7 +94,7 @@ func storeEncryptedData(c echo.Context, data *E2EData, isFile bool) error {
 func storeEncryptedDataWithId(c echo.Context, data *E2EData, isFile bool, secretId string) error {
 	if !config.AdvancedFeatures {
 		if data.TTL == nil || data.ViewCount == nil {
-			return errorResponse(c, http.StatusBadRequest, "advanced features are disabled")
+			return echo.NewHTTPError(http.StatusBadRequest, "advanced features are disabled")
 		}
 	}
 
@@ -117,12 +118,14 @@ func storeEncryptedDataWithId(c echo.Context, data *E2EData, isFile bool, secret
 	secretStore := storage.GetSecretStore()
 	secretDataJson, err := json.Marshal(secretData)
 	if err != nil {
-		return errorResponse(c, http.StatusInternalServerError, "error serializing secret data")
+		c.Logger().Error("error serializing secret data: ", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "error serializing secret data")
 	}
 
 	if err := secretStore.StoreSecretRaw(secretId, secretDataJson, data.TTL, data.ViewCount); err != nil {
-		return errorResponse(c, http.StatusInternalServerError, "error storing secret")
+		c.Logger().Error("error storing secret: ", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "error storing secret")
 	}
 
-	return successResponse(c, map[string]string{"status": "success", "secretId": secretId})
+	return c.JSON(http.StatusOK, map[string]string{"status": "success", "secretId": secretId})
 }

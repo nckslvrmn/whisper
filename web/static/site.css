@@ -146,57 +146,32 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
   color: var(--comment);
 }
 
-.btn {
-  padding: 0.625rem 1.25rem;
-  font-weight: 600;
-  border-radius: 0.375rem;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
 .btn-primary {
   background-color: var(--purple);
-  border: none;
+  border-color: var(--purple);
   color: var(--background);
   font-weight: 700;
 }
 
-.btn-primary:hover {
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
   background-color: var(--pink);
+  border-color: var(--pink);
   color: var(--background);
 }
 
 .btn-outline-primary {
-  background-color: transparent;
-  border: 1px solid var(--purple);
+  border-color: var(--purple);
   color: var(--purple);
 }
 
-.btn-outline-primary:hover {
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:active {
   background-color: var(--purple);
-  color: var(--background);
   border-color: var(--purple);
-}
-
-.btn-group {
-  display: flex;
-  border-radius: 0.375rem;
-  overflow: hidden;
-}
-
-.btn-group .btn {
-  flex: 1;
-  border-radius: 0;
-  margin: 0;
-}
-
-.btn-group .btn:first-child {
-  border-top-left-radius: 0.375rem;
-  border-bottom-left-radius: 0.375rem;
-}
-
-.btn-group .btn:last-child {
-  border-top-right-radius: 0.375rem;
-  border-bottom-right-radius: 0.375rem;
+  color: var(--background);
 }
 
 .fas {
@@ -271,7 +246,18 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
   margin: 0;
   width: 100%;
   color: var(--background);
-  transition: opacity 0.2s ease;
+}
+
+#response_body.fade {
+  transition: opacity 0.15s linear;
+}
+
+#response_body.fade:not(.show) {
+  opacity: 0;
+}
+
+#response_body.show {
+  opacity: 1;
 }
 
 @media (max-width: 768px) {
@@ -311,15 +297,13 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 }
 
 .alert {
-  border-radius: 0.375rem;
   border: none;
-  width: 100%;
-  padding: 0.75rem 1rem;
-  transition: background-color 0.3s ease;
 }
 
 .alert-success {
   background-color: var(--green) !important;
+  color: var(--background);
+  border-color: var(--green) !important;
 }
 
 .alert-success #response_body {
@@ -328,6 +312,8 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 
 .alert-primary {
   background-color: var(--purple) !important;
+  color: var(--foreground);
+  border-color: var(--purple) !important;
 }
 
 .alert-primary #response_body {
@@ -336,6 +322,8 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 
 .alert-warning {
   background: var(--yellow) !important;
+  color: var(--background);
+  border-color: var(--yellow) !important;
 }
 
 .alert-warning #response_body {
@@ -344,28 +332,12 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 
 .alert-danger {
   background-color: var(--red) !important;
+  color: var(--foreground);
+  border-color: var(--red) !important;
 }
 
 .alert-danger #response_body {
   color: var(--foreground);
-}
-
-.spinner {
-  display: inline-block;
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid var(--foreground);
-  border-radius: 50%;
-  border-top-color: transparent;
-  animation: spinner 0.6s linear infinite;
-  margin-right: 0.5rem;
-  vertical-align: middle;
-}
-
-@keyframes spinner {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .copy-btn-float {
@@ -431,19 +403,6 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
   font-weight: 600;
 }
 
-.form-control:focus-visible,
-.btn:focus-visible,
-.btn-link:focus-visible {
-  outline: 2px solid var(--pink);
-  outline-offset: 2px;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
 @keyframes checkmark {
   0% {
     opacity: 0;
@@ -486,108 +445,27 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
   font-size: 1rem;
 }
 
-.btn-group label {
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-#textToggleLabel,
-#fileToggleLabel {
+.nav-pills .nav-link {
   background-color: transparent;
   border: 1px solid var(--purple);
   color: var(--purple);
+  font-weight: 600;
 }
 
-#textToggleLabel:hover,
-#fileToggleLabel:hover {
-  box-shadow: inset 0 0 0 1px var(--purple);
+.nav-pills .nav-link:hover {
+  background-color: rgba(189, 147, 249, 0.1);
+  border-color: var(--purple);
+  color: var(--purple);
 }
 
-#fileForm {
-  display: none;
-}
-
-#textToggle:checked~.btn-group #textToggleLabel {
+.nav-pills .nav-link.active {
   background-color: var(--purple);
-  border: 1px solid var(--purple);
-  color: white;
-}
-
-#textToggle:checked~.btn-group #textToggleLabel:hover {
-  box-shadow: inset 0 0 0 2px var(--pink);
-}
-
-#textToggle:checked~.btn-group #fileToggleLabel {
-  background-color: transparent;
-  border: 1px solid var(--purple);
-  color: var(--purple);
-}
-
-#textToggle:checked~.btn-group #fileToggleLabel:hover {
-  box-shadow: inset 0 0 0 1px var(--purple);
-}
-
-#textToggle:checked~#textForm {
-  display: block;
-  animation: fadeIn 0.3s ease;
-}
-
-#textToggle:checked~#fileForm {
-  display: none;
-}
-
-#fileToggle:checked~.btn-group #fileToggleLabel {
-  background-color: var(--purple);
-  border: 1px solid var(--purple);
-  color: white;
-}
-
-#fileToggle:checked~.btn-group #fileToggleLabel:hover {
-  box-shadow: inset 0 0 0 2px var(--pink);
-}
-
-#fileToggle:checked~.btn-group #textToggleLabel {
-  background-color: transparent;
-  border: 1px solid var(--purple);
-  color: var(--purple);
-}
-
-#fileToggle:checked~.btn-group #textToggleLabel:hover {
-  box-shadow: inset 0 0 0 1px var(--purple);
-}
-
-#fileToggle:checked~#textForm {
-  display: none;
-}
-
-#fileToggle:checked~#fileForm {
-  display: block;
-  animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.btn {
-  transition: all 0.15s ease;
-  border: 1px solid transparent;
+  border-color: var(--purple);
+  color: var(--background);
 }
 
 .btn:active {
   transform: scale(0.98);
-}
-
-.btn:hover {
-  box-shadow: inset 0 0 0 1px var(--purple);
 }
 
 .btn:focus-visible {
@@ -608,21 +486,6 @@ input[type="file"] {
   transition: all 0.2s ease;
 }
 
-.btn-primary {
-  background: var(--purple);
-  border: none;
-  font-weight: 700;
-}
-
-.btn-primary:hover {
-  background: var(--pink);
-  box-shadow: 0 4px 12px rgba(189, 147, 249, 0.3);
-}
-
-.btn-outline-primary:hover {
-  background: rgba(189, 147, 249, 0.1);
-  transform: translateY(-1px);
-}
 
 .copy-btn-float,
 .btn-outline-secondary {
@@ -676,4 +539,47 @@ input[type="file"] {
 
 .advanced-toggle[aria-expanded="true"] .arrow::before {
   content: '▾';
+}
+
+.toast {
+  border: none;
+  border-radius: 0.5rem;
+  min-width: 350px;
+  max-width: 500px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.toast-body {
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--background);
+  line-height: 1.4;
+}
+
+.toast .btn-close {
+  background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2322212C'%3e%3cpath d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+.toast .btn-close:hover {
+  opacity: 1;
+}
+
+.toast .toast-icon {
+  font-size: 1.25rem;
+  color: var(--background);
+  flex-shrink: 0;
+}
+
+.toast .toast-message {
+  color: var(--background);
+  font-size: 0.95rem;
+}
+
+.toast-container {
+  z-index: 9999;
 }
