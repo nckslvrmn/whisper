@@ -4,9 +4,11 @@ whisper
 
 # WASM files (generated during build)
 web/static/crypto.wasm
-web/static/crypto.wasm.gz
-web/static/crypto.wasm.br
 web/static/wasm_exec.js
+
+# Static Pre-compiled
+web/static/*.gz
+web/static/*.br
 
 # Go build cache
 *.test
