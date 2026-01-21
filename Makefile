@@ -25,3 +25,5 @@ clean:
 	rm -f whisper
 	rm -f web/static/crypto.wasm*
 	rm -f web/static/wasm_exec.js
+	rm -f web/static/*.br
+	rm -f web/static/*.gz
