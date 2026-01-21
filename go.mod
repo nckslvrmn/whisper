@@ -5,6 +5,7 @@ go 1.25.5
 require (
 	cloud.google.com/go/firestore v1.21.0
 	cloud.google.com/go/storage v1.59.1
+	github.com/andybalholm/brotli v1.2.0
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.53.6

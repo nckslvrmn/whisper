@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/nckslvrmn/whisper/internal/config"
 	"github.com/nckslvrmn/whisper/internal/handlers"
+	custommw "github.com/nckslvrmn/whisper/internal/middleware"
 	"github.com/nckslvrmn/whisper/internal/storage"
 )
 
@@ -51,6 +52,13 @@ func main() {
 		e.Logger.Fatal(err)
 	}
 
+	compressedCache := custommw.NewCompressedFileCache("web/static")
+	if err := compressedCache.PrecompressStaticFiles(); err != nil {
+		e.Logger.Warnf("Failed to pre-compress static files: %v", err)
+	} else {
+		e.Logger.Info("Pre-compressed static files successfully")
+	}
+
 	templates := map[string]*template.Template{
 		"index":  template.Must(template.ParseFiles("web/templates/layout.html", "web/templates/index.html")),
 		"secret": template.Must(template.ParseFiles("web/templates/layout.html", "web/templates/secret.html")),
@@ -60,8 +68,10 @@ func main() {
 		templates: templates,
 	}
 
-	e.Static("/static", "web/static")
 	e.Renderer = t
+
+	e.Use(compressedCache.Middleware)
+	e.Static("/static", "web/static")
 
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -74,6 +84,9 @@ func main() {
 
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
+		Skipper: func(c echo.Context) bool {
+			return len(c.Path()) >= 7 && c.Path()[:7] == "/static"
+		},
 	}))
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
