@@ -90,25 +90,25 @@ func (c *CompressedFileCache) Middleware(next echo.HandlerFunc) echo.HandlerFunc
 		c.mu.RUnlock()
 
 		if hasBr && strings.Contains(acceptEncoding, "br") {
-			brPath := filepath.Join(c.baseDir, relPath+".br")
-			if !c.isPathSafe(brPath) {
+			absPath, err := filepath.Abs(filepath.Join(c.baseDir, relPath+".br"))
+			if err != nil || !strings.HasPrefix(absPath, c.absBaseDir) {
 				return next(ctx)
 			}
 			ctx.Response().Header().Set("Content-Encoding", "br")
 			ctx.Response().Header().Set("Content-Type", getContentType(relPath))
 			ctx.Response().Header().Set("Vary", "Accept-Encoding")
-			return ctx.File(brPath)
+			return ctx.File(absPath)
 		}
 
 		if hasGz && strings.Contains(acceptEncoding, "gzip") {
-			gzPath := filepath.Join(c.baseDir, relPath+".gz")
-			if !c.isPathSafe(gzPath) {
+			absPath, err := filepath.Abs(filepath.Join(c.baseDir, relPath+".gz"))
+			if err != nil || !strings.HasPrefix(absPath, c.absBaseDir) {
 				return next(ctx)
 			}
 			ctx.Response().Header().Set("Content-Encoding", "gzip")
 			ctx.Response().Header().Set("Content-Type", getContentType(relPath))
 			ctx.Response().Header().Set("Vary", "Accept-Encoding")
-			return ctx.File(gzPath)
+			return ctx.File(absPath)
 		}
 
 		return next(ctx)
@@ -118,20 +118,6 @@ func (c *CompressedFileCache) Middleware(next echo.HandlerFunc) echo.HandlerFunc
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
-}
-
-func (c *CompressedFileCache) isPathSafe(targetPath string) bool {
-	absTarget, err := filepath.Abs(targetPath)
-	if err != nil {
-		return false
-	}
-
-	rel, err := filepath.Rel(c.absBaseDir, absTarget)
-	if err != nil {
-		return false
-	}
-
-	return !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != ".."
 }
 
 func compressBrotli(srcPath string) error {
