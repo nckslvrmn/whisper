@@ -3,6 +3,7 @@ package middleware
 import (
 	"compress/gzip"
 	"io"
+	"mime"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,17 +14,23 @@ import (
 )
 
 type CompressedFileCache struct {
-	mu      sync.RWMutex
-	brotli  map[string]bool
-	gzip    map[string]bool
-	baseDir string
+	mu         sync.RWMutex
+	brotli     map[string]bool
+	gzip       map[string]bool
+	baseDir    string
+	absBaseDir string
 }
 
 func NewCompressedFileCache(baseDir string) *CompressedFileCache {
+	absBaseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		absBaseDir = baseDir
+	}
 	return &CompressedFileCache{
-		brotli:  make(map[string]bool),
-		gzip:    make(map[string]bool),
-		baseDir: baseDir,
+		brotli:     make(map[string]bool),
+		gzip:       make(map[string]bool),
+		baseDir:    baseDir,
+		absBaseDir: absBaseDir,
 	}
 }
 
@@ -75,6 +82,7 @@ func (c *CompressedFileCache) Middleware(next echo.HandlerFunc) echo.HandlerFunc
 
 		acceptEncoding := ctx.Request().Header.Get("Accept-Encoding")
 		relPath := strings.TrimPrefix(ctx.Request().URL.Path, "/static")
+		relPath = filepath.Clean(relPath)
 
 		c.mu.RLock()
 		hasBr := c.brotli[relPath]
@@ -83,6 +91,9 @@ func (c *CompressedFileCache) Middleware(next echo.HandlerFunc) echo.HandlerFunc
 
 		if hasBr && strings.Contains(acceptEncoding, "br") {
 			brPath := filepath.Join(c.baseDir, relPath+".br")
+			if !c.isPathSafe(brPath) {
+				return next(ctx)
+			}
 			ctx.Response().Header().Set("Content-Encoding", "br")
 			ctx.Response().Header().Set("Content-Type", getContentType(relPath))
 			ctx.Response().Header().Set("Vary", "Accept-Encoding")
@@ -91,6 +102,9 @@ func (c *CompressedFileCache) Middleware(next echo.HandlerFunc) echo.HandlerFunc
 
 		if hasGz && strings.Contains(acceptEncoding, "gzip") {
 			gzPath := filepath.Join(c.baseDir, relPath+".gz")
+			if !c.isPathSafe(gzPath) {
+				return next(ctx)
+			}
 			ctx.Response().Header().Set("Content-Encoding", "gzip")
 			ctx.Response().Header().Set("Content-Type", getContentType(relPath))
 			ctx.Response().Header().Set("Vary", "Accept-Encoding")
@@ -104,6 +118,20 @@ func (c *CompressedFileCache) Middleware(next echo.HandlerFunc) echo.HandlerFunc
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func (c *CompressedFileCache) isPathSafe(targetPath string) bool {
+	absTarget, err := filepath.Abs(targetPath)
+	if err != nil {
+		return false
+	}
+
+	rel, err := filepath.Rel(c.absBaseDir, absTarget)
+	if err != nil {
+		return false
+	}
+
+	return !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != ".."
 }
 
 func compressBrotli(srcPath string) error {
@@ -150,20 +178,10 @@ func compressGzip(srcPath string) error {
 }
 
 func getContentType(path string) string {
-	switch {
-	case strings.HasSuffix(path, ".wasm"):
-		return "application/wasm"
-	case strings.HasSuffix(path, ".js"):
-		return "application/javascript"
-	case strings.HasSuffix(path, ".css"):
-		return "text/css"
-	case strings.HasSuffix(path, ".json"):
-		return "application/json"
-	case strings.HasSuffix(path, ".svg"):
-		return "image/svg+xml"
-	case strings.HasSuffix(path, ".woff"), strings.HasSuffix(path, ".woff2"):
-		return "font/woff2"
-	default:
+	ext := filepath.Ext(path)
+	contentType := mime.TypeByExtension(ext)
+	if contentType == "" {
 		return "application/octet-stream"
 	}
+	return contentType
 }
