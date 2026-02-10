@@ -232,10 +232,18 @@ async function getSecret(event) {
   }
 
   const form = document.getElementById('form');
+  const submitBtn = form.querySelector('input[type="submit"]');
+  const originalValue = submitBtn ? submitBtn.value : '';
   let infoToast = null;
 
   try {
     await initWASM();
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.value = 'Decrypting...';
+    }
+
     infoToast = toast.open({
       type: 'info',
       message: 'Decrypting your secret...'
@@ -313,6 +321,10 @@ async function getSecret(event) {
   } catch (error) {
     console.error('Error:', error);
     if (infoToast) toast.dismiss(infoToast);
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.value = originalValue;
+    }
     const message = error.message.includes('passphrase') ? 'Invalid passphrase' :
       error.message.includes('not found') ? error.message :
         'There was an error decrypting the secret';
@@ -409,7 +421,13 @@ function copyToClipboard(elementId, button) {
 function clearForm(isFile) {
   if (isFile) {
     const fileInput = document.getElementById('file');
-    if (fileInput) fileInput.value = '';
+    if (fileInput) {
+      fileInput.value = '';
+      const helperText = fileInput.parentElement.querySelector('.form-text');
+      if (helperText) {
+        helperText.textContent = 'Maximum file size: 10MB';
+      }
+    }
   } else {
     const textarea = document.getElementById('secretText');
     if (textarea) textarea.value = '';
@@ -433,6 +451,23 @@ window.addEventListener('DOMContentLoaded', async () => {
   const textarea = document.getElementById('secretText');
   if (textarea) {
     setTimeout(() => textarea.focus(), TIMEOUTS.FOCUS_DELAY);
+  }
+
+  const fileInput = document.getElementById('file');
+  if (fileInput) {
+    const helperText = fileInput.parentElement.querySelector('.form-text');
+    const originalText = helperText ? helperText.textContent : '';
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+
+      if (file && helperText) {
+        const fileSize = (file.size / 1024).toFixed(2);
+        helperText.textContent = `Selected: ${file.name} (${fileSize} KB)`;
+      } else if (helperText) {
+        helperText.textContent = originalText;
+      }
+    });
   }
 
   document.addEventListener('keydown', (e) => {

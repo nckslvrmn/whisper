@@ -114,6 +114,7 @@ input[type="file"].form-control {
 input[type="file"].form-control:focus {
   border-color: var(--pink);
   outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 128, 191, 0.2);
 }
 
 input[type="file"].form-control::file-selector-button,
@@ -162,6 +163,14 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
   color: var(--background);
 }
 
+.btn-primary:disabled {
+  background-color: var(--comment);
+  border-color: var(--comment);
+  color: var(--background);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-outline-primary {
   border-color: var(--purple);
   color: var(--purple);
@@ -187,7 +196,7 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 
 #results {
   width: 100%;
-  margin-top: 1.25rem;
+  margin-top: 2rem;
   margin-bottom: 0;
   background: transparent;
   padding: 0;
