@@ -29,15 +29,16 @@ body {
   color: var(--foreground);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 1rem;
+  padding: 2rem 1rem;
   line-height: 1.6;
 }
 
 .form {
   width: 100%;
   max-width: 900px;
+  margin-top: 10vh;
 }
 
 .main-title {
@@ -266,6 +267,10 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
     padding-top: 1rem;
   }
 
+  .form {
+    margin-top: 4vh;
+  }
+
   .form-signin {
     padding: 1.25rem;
   }
@@ -379,9 +384,9 @@ input[type="file"].form-control::-webkit-file-upload-button:hover {
 }
 
 .copy-btn-float.copied {
-  background-color: var(--green);
-  border-color: var(--background);
-  color: var(--background);
+  background-color: var(--green) !important;
+  border-color: var(--background) !important;
+  color: var(--background) !important;
 }
 
 #response_body a {

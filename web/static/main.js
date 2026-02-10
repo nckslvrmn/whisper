@@ -240,7 +240,6 @@ async function getSecret(event) {
       type: 'info',
       message: 'Decrypting your secret...'
     });
-    scrollToResults();
 
     const saltData = await postJSON('/decrypt', {
       secret_id: secretId,
@@ -299,14 +298,17 @@ async function getSecret(event) {
       <button class="copy-btn-float" onclick="copyToClipboard('${contentId}', this)" aria-label="Copy decrypted secret">
         <i class="fas fa-copy"></i> Copy
       </button>`, false);
-      scrollToResults();
       toast.success('Secret decrypted successfully!');
     }
 
     if (form) {
-      form.classList.add('fade');
-      form.classList.remove('show');
-      setTimeout(() => form.remove(), TIMEOUTS.FORM_REMOVE);
+      form.style.maxHeight = form.offsetHeight + 'px';
+      form.style.overflow = 'hidden';
+      requestAnimationFrame(() => {
+        form.style.transition = 'max-height 0.3s ease, opacity 0.2s ease';
+        form.style.maxHeight = '0';
+        form.style.opacity = '0';
+      });
     }
   } catch (error) {
     console.error('Error:', error);
@@ -360,11 +362,6 @@ function setResp(level, content, text_resp) {
 function scrollToResults() {
   const results = document.getElementById('results');
   if (results) {
-    const formWrapper = document.querySelector('.form');
-    if (formWrapper) {
-      formWrapper.style.marginBottom = '5vh';
-    }
-
     const handleTransitionEnd = () => {
       window.scrollTo({
         top: document.documentElement.scrollHeight,
