@@ -8,6 +8,7 @@ import (
 var (
 	ProjectName      string
 	AdvancedFeatures bool
+	Port             string
 )
 
 func LoadAppConfig() error {
@@ -21,6 +22,11 @@ func LoadAppConfig() error {
 		if parsed, err := strconv.ParseBool(advFeaturesStr); err == nil {
 			AdvancedFeatures = parsed
 		}
+	}
+
+	Port = os.Getenv("PORT")
+	if Port == "" {
+		Port = "8081"
 	}
 
 	return nil
