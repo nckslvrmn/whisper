@@ -311,11 +311,8 @@ async function getSecret(event) {
 
     if (form) {
       form.style.maxHeight = form.offsetHeight + 'px';
-      form.style.overflow = 'hidden';
       requestAnimationFrame(() => {
-        form.style.transition = 'max-height 0.3s ease, opacity 0.2s ease';
-        form.style.maxHeight = '0';
-        form.style.opacity = '0';
+        form.classList.add('form-hide');
       });
     }
   } catch (error) {
@@ -372,18 +369,12 @@ function setResp(level, content, text_resp) {
 }
 
 function scrollToResults() {
-  const results = document.getElementById('results');
-  if (results) {
-    const handleTransitionEnd = () => {
-      window.scrollTo({
-        top: document.documentElement.scrollHeight,
-        behavior: 'smooth'
-      });
-      results.removeEventListener('transitionend', handleTransitionEnd);
-    };
-
-    results.addEventListener('transitionend', handleTransitionEnd);
-  }
+  setTimeout(() => {
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: 'smooth'
+    });
+  }, 400);
 }
 
 function copyToClipboard(elementId, button) {
@@ -398,14 +389,14 @@ function copyToClipboard(elementId, button) {
 
     button.innerHTML = '<i class="fas fa-check"></i> Copied!';
     button.classList.add('copied');
-    button.style.transform = 'scale(1.05)';
+    button.style.scale = '1.05';
 
     toast.success('Copied to clipboard!');
 
     setTimeout(() => {
       button.innerHTML = originalHTML;
       button.classList.remove('copied');
-      button.style.transform = '';
+      button.style.scale = '';
     }, TIMEOUTS.COPY_RESET);
   }).catch(err => {
     console.error('Failed to copy:', err);
