@@ -109,7 +109,7 @@ func main() {
 	e.POST("/decrypt", handlers.Decrypt)
 
 	go func() {
-		if err := e.Start(":8081"); err != nil && err != http.ErrServerClosed {
+		if err := e.Start(":" + config.Port); err != nil && err != http.ErrServerClosed {
 			e.Logger.Fatal("shutting down the server")
 		}
 	}()
