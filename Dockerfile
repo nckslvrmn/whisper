@@ -7,7 +7,7 @@ COPY wasm/ ./wasm/
 RUN cd wasm && cargo build --release --target wasm32-unknown-unknown && \
     wasm-bindgen --target web --out-name crypto \
         --out-dir /wasm_out/ \
-        wasm/target/wasm32-unknown-unknown/release/whisper_crypto.wasm && \
+        target/wasm32-unknown-unknown/release/whisper_crypto.wasm && \
     wasm-opt -Os /wasm_out/crypto_bg.wasm -o /wasm_out/crypto_bg.wasm && \
     gzip -9 -k -f /wasm_out/crypto_bg.wasm && \
     brotli -9 -k -f /wasm_out/crypto_bg.wasm
