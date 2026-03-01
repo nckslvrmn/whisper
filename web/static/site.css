@@ -29,7 +29,6 @@ body {
   min-height: 100%;
   background: var(--background);
   color: var(--foreground);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -55,7 +54,7 @@ body {
   width: 100%;
   border: none;
   position: relative;
-  transition: transform 0.3s ease;
+  transition: opacity 0.3s ease;
 
   .form-group {
     margin-bottom: 1.25rem;
@@ -84,12 +83,6 @@ body {
     margin-bottom: 0;
   }
 
-  &.form-hide {
-    overflow: hidden;
-    transition: max-height 0.3s ease, opacity 0.2s ease;
-    max-height: 0 !important;
-    opacity: 0;
-  }
 }
 
 .text-muted {
@@ -106,7 +99,6 @@ body {
   border: 1px solid var(--comment);
   border-radius: 0.375rem;
   padding: 0.625rem 1rem;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
   background-color: var(--background);
   box-shadow: none;
   color: var(--foreground);
@@ -130,7 +122,6 @@ input[type="file"].form-control {
   background: var(--background);
   color: var(--foreground);
   border-radius: 0.375rem;
-  transition: border-color 0.15s ease;
 
   &:focus {
     border-color: var(--pink);
@@ -189,7 +180,7 @@ input[type="file"].form-control {
   }
 }
 
-.fas {
+.fas:not(.toast-icon) {
   color: var(--cyan);
   margin-block-end: 0.75rem;
   transition: transform 0.2s ease;
@@ -200,29 +191,25 @@ input[type="file"].form-control {
 }
 
 #results {
+  display: grid;
+  grid-template-rows: 0fr;
   width: 100%;
-  margin-top: 2rem;
+  margin-top: 0;
   margin-bottom: 0;
-  background: transparent;
-  padding: 0;
-  box-sizing: border-box;
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out, margin-bottom 0.3s ease-in-out, all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   opacity: 0;
+  transition:
+    grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease,
+    margin-top 0.35s ease;
 
   &.active {
-    max-height: 5000px;
-    min-height: 60px;
-    overflow: visible;
+    grid-template-rows: 1fr;
     opacity: 1;
+    margin-top: 2rem;
     margin-bottom: 0.25rem;
-    animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .alert {
-    opacity: 1;
-    transform: translateY(0);
     width: 100%;
     margin: 0;
     position: relative;
@@ -239,8 +226,9 @@ input[type="file"].form-control {
 }
 
 #response {
+  overflow: hidden;
+  min-height: 0;
   margin: 0;
-  height: 100%;
 }
 
 #response_body {
@@ -252,7 +240,6 @@ input[type="file"].form-control {
   line-height: 1.25;
   overflow-x: hidden;
   overflow-wrap: break-word;
-  word-wrap: break-word;
   word-break: break-word;
   white-space: pre-wrap;
   margin: 0;
@@ -313,7 +300,7 @@ input[type="file"].form-control {
     margin-bottom: 1rem;
   }
 
-  .fas {
+  .fas:not(.toast-icon) {
     font-size: 3rem;
     margin-bottom: 0.5rem;
   }
@@ -393,7 +380,7 @@ input[type="file"].form-control {
   font-weight: 600;
   line-height: 1.2;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: opacity 0.15s ease, translate 0.15s ease, scale 0.15s ease;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   z-index: 10;
 
@@ -500,12 +487,7 @@ input[type="file"].form-control {
 }
 
 :is(.form-control, .form-select, input[type="file"]) {
-  transition: all 0.2s ease;
-}
-
-
-:is(.copy-btn-float, .btn-outline-secondary) {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, translate 0.2s ease;
 }
 
 .copied {
@@ -524,18 +506,6 @@ input[type="file"].form-control {
 
   50% {
     scale: 1.05;
-  }
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    translate: 0 20px;
-  }
-
-  to {
-    opacity: 1;
-    translate: 0 0;
   }
 }
 

@@ -15,7 +15,6 @@ func Decrypt(c echo.Context) error {
 	var requestData struct {
 		SecretId     string `json:"secret_id"`
 		PasswordHash string `json:"passwordHash"`
-		GetSalt      bool   `json:"getSalt,omitempty"`
 	}
 
 	err := c.Bind(&requestData)
@@ -55,12 +54,6 @@ func Decrypt(c echo.Context) error {
 		}
 	}
 
-	if requestData.GetSalt {
-		return c.JSON(http.StatusOK, map[string]any{
-			"salt": secretData["salt"],
-		})
-	}
-
 	if requestData.PasswordHash == "" {
 		return echo.NewHTTPError(http.StatusNotFound, "Secret not found or already viewed")
 	}
@@ -82,7 +75,6 @@ func Decrypt(c echo.Context) error {
 		"encryptedData":     secretData["encryptedData"],
 		"encryptedMetadata": secretData["encryptedMetadata"],
 		"nonce":             secretData["nonce"],
-		"salt":              secretData["salt"],
 		"header":            secretData["header"],
 		"isFile":            isFile,
 	}

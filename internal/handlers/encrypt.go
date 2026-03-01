@@ -17,7 +17,6 @@ type E2EData struct {
 	EncryptedFile     string `json:"encryptedFile,omitempty"`
 	EncryptedMetadata string `json:"encryptedMetadata,omitempty"`
 	Nonce             string `json:"nonce"`
-	Salt              string `json:"salt"`
 	Header            string `json:"header"`
 	ViewCount         *int   `json:"viewCount,omitempty"`
 	TTL               *int64 `json:"ttl,omitempty"`
@@ -104,7 +103,6 @@ func storeEncryptedDataWithId(c echo.Context, data *E2EData, isFile bool, secret
 		"encryptedData":     data.EncryptedData,
 		"encryptedMetadata": data.EncryptedMetadata,
 		"nonce":             data.Nonce,
-		"salt":              data.Salt,
 		"header":            data.Header,
 		"isFile":            isFile,
 	}

@@ -7,22 +7,17 @@ use hkdf::Hkdf;
 use sha2::Sha256;
 use wasm_bindgen::prelude::*;
 
-// ── constants ────────────────────────────────────────────────────────────────
-// Crypto constants must match across encrypt/decrypt. Changing these breaks
-// all existing secrets — backwards compat is intentionally dropped here.
-const NONCE_SIZE: usize = 24; // XChaCha20-Poly1305 uses 192-bit (24-byte) nonces
+const NONCE_SIZE: usize = 24;
 const SALT_SIZE: usize = 16;
 const HEADER_SIZE: usize = 16;
 const PASSPHRASE_LENGTH: usize = 32;
 const KEY_SIZE: usize = 32;
-// Argon2id — OWASP high-security profile. p=1 is correct for WASM (single-threaded).
-const ARGON2_M_COST: u32 = 65536; // 64 MiB
-const ARGON2_T_COST: u32 = 2; // iterations
-const ARGON2_P_COST: u32 = 1; // parallelism
-
-// ── randomness ───────────────────────────────────────────────────────────────
-// All randomness goes directly through getrandom, which calls
-// crypto.getRandomValues() in the browser. We never touch rand or thread_rng.
+// URL_SAFE (padded) base64 of SALT_SIZE bytes = ceil(16/3)*4 = 24 chars.
+// The display passphrase is b64(salt) || random_chars, split at this boundary.
+const SALT_B64_LEN: usize = 24;
+const ARGON2_M_COST: u32 = 65536;
+const ARGON2_T_COST: u32 = 2;
+const ARGON2_P_COST: u32 = 1;
 
 fn rand_bytes(len: usize) -> Vec<u8> {
     let mut bytes = vec![0u8; len];
@@ -31,18 +26,13 @@ fn rand_bytes(len: usize) -> Vec<u8> {
 }
 
 fn rand_string(length: usize) -> String {
-    // Matches Go: alphaNum + special chars (urlSafe = false).
     const CHARS: &[u8] =
         b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&*+-=?@_~";
     const CHAR_LEN: usize = CHARS.len(); // 75
-    // Rejection sampling: only accept bytes < 225 (= 3 * 75) so each character
-    // maps to exactly 3 raw byte values, eliminating modulo bias entirely.
     const ACCEPT_BELOW: usize = (256 / CHAR_LEN) * CHAR_LEN; // 225
 
     let mut result = Vec::with_capacity(length);
     while result.len() < length {
-        // Over-allocate to minimise the number of getrandom calls (rejection
-        // rate is ~12% so 2× the needed bytes is plenty).
         let mut buf = vec![0u8; (length - result.len()) * 2];
         getrandom::getrandom(&mut buf).expect("getrandom failed");
         for b in buf {
@@ -57,9 +47,6 @@ fn rand_string(length: usize) -> String {
     result.into_iter().collect()
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-// Matches Go's base64.URLEncoding: URL-safe alphabet with = padding.
 fn b64e(data: &[u8]) -> String {
     URL_SAFE.encode(data)
 }
@@ -82,17 +69,12 @@ fn sanitize_ttl_days(days_str: &str) -> f64 {
     } else {
         7
     };
-    // Use integer division to guarantee a whole-second Unix timestamp.
-    // Date::now() returns milliseconds; dividing as i64 truncates the ms part.
+
     let now_secs = js_sys::Date::now() as i64 / 1000;
     (now_secs + (ttl as i64 * 86400)) as f64
 }
 
-// Derive two independent keys from a single expensive Argon2id call.
-// enc_key  → XChaCha20-Poly1305 encryption; never leaves the client.
-// auth_key → stored server-side as passwordHash; cannot recover enc_key.
 fn derive_keys(passphrase: &str, salt: &[u8]) -> (Vec<u8>, Vec<u8>) {
-    // Single expensive Argon2id call produces the root key material.
     let params = Params::new(ARGON2_M_COST, ARGON2_T_COST, ARGON2_P_COST, Some(KEY_SIZE))
         .expect("invalid argon2 params");
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
@@ -101,7 +83,6 @@ fn derive_keys(passphrase: &str, salt: &[u8]) -> (Vec<u8>, Vec<u8>) {
         .hash_password_into(passphrase.as_bytes(), salt, &mut root)
         .expect("argon2 failed");
 
-    // Cheap HKDF expansion splits root into two domain-separated keys.
     let hk = Hkdf::<Sha256>::new(Some(salt), &root);
     let mut enc_key = vec![0u8; KEY_SIZE];
     let mut auth_key = vec![0u8; KEY_SIZE];
@@ -158,21 +139,16 @@ fn hash_password_internal(password: &str, salt: &[u8]) -> String {
     hex::encode(auth_key)
 }
 
-// Build a JS object with a single "error" field.
 fn err_js(msg: &str) -> JsValue {
     let obj = js_sys::Object::new();
     js_sys::Reflect::set(&obj, &JsValue::from_str("error"), &JsValue::from_str(msg)).unwrap();
     obj.into()
 }
 
-// ── module init ───────────────────────────────────────────────────────────────
-
 #[wasm_bindgen(start)]
 pub fn main() {
     console_error_panic_hook::set_once();
 }
-
-// ── exported functions ────────────────────────────────────────────────────────
 
 #[wasm_bindgen(js_name = "encryptText")]
 pub fn encrypt_text(
@@ -202,13 +178,19 @@ pub fn encrypt_text(
 
     let password_hash = hash_password_internal(&passphrase, &salt);
 
+    // The display passphrase embeds the salt so it never needs to be stored or
+    // returned by the server. Layout: b64(salt) || passphrase_chars.
+    // The JS split boundary is SALT_B64_LEN (24) chars.
+    let salt_b64 = b64e(&salt);
+    debug_assert_eq!(salt_b64.len(), SALT_B64_LEN, "b64e(salt) length mismatch — SALT_B64_LEN constant is wrong");
+    let display_passphrase = format!("{}{}", salt_b64, passphrase);
+
     let obj = js_sys::Object::new();
     let s = |k: &str, v: &str| {
         js_sys::Reflect::set(&obj, &JsValue::from_str(k), &JsValue::from_str(v)).unwrap();
     };
-    s("passphrase", &passphrase);
+    s("passphrase", &display_passphrase);
     s("nonce", &b64e(&nonce));
-    s("salt", &b64e(&salt));
     s("header", &b64e(&header));
     s("passwordHash", &password_hash);
     s("encryptedData", &b64e(&encrypted));
@@ -235,7 +217,6 @@ pub fn encrypt_file(
     ttl_days: Option<String>,
     ttl_timestamp: Option<String>,
 ) -> JsValue {
-    // File data arrives as standard (non-URL-safe) base64 from arrayBufferToBase64().
     let file_data = match STANDARD.decode(&file_data_b64) {
         Ok(d) => d,
         Err(e) => return err_js(&format!("Invalid file data: {e}")),
@@ -246,7 +227,6 @@ pub fn encrypt_file(
     let salt = rand_bytes(SALT_SIZE);
     let header = rand_bytes(HEADER_SIZE);
 
-    // None for both = "disable TTL" (no expiry). Otherwise resolve to a Unix timestamp.
     let ttl: Option<f64> = if let Some(ref ts) = ttl_timestamp {
         Some(ts.parse().unwrap_or_else(|_| sanitize_ttl_days("7")))
     } else if let Some(ref days) = ttl_days {
@@ -261,9 +241,6 @@ pub fn encrypt_file(
         Err(e) => return err_js(&e),
     };
 
-    // Use a dedicated nonce for metadata to prevent nonce reuse under the same key.
-    // The meta_nonce is prepended to the ciphertext so the server stores it
-    // as part of the opaque encryptedMetadata blob — no server-side changes needed.
     let meta_nonce = rand_bytes(NONCE_SIZE);
     let metadata_json = serde_json::json!({
         "file_name": file_name,
@@ -280,19 +257,20 @@ pub fn encrypt_file(
         Ok(d) => d,
         Err(e) => return err_js(&e),
     };
-    // Layout: meta_nonce (24 bytes) || ciphertext
+
     let mut encrypted_metadata = meta_nonce;
     encrypted_metadata.extend_from_slice(&encrypted_metadata_raw);
 
     let password_hash = hash_password_internal(&passphrase, &salt);
 
+    let display_passphrase = format!("{}{}", b64e(&salt), passphrase);
+
     let obj = js_sys::Object::new();
     let s = |k: &str, v: &str| {
         js_sys::Reflect::set(&obj, &JsValue::from_str(k), &JsValue::from_str(v)).unwrap();
     };
-    s("passphrase", &passphrase);
+    s("passphrase", &display_passphrase);
     s("nonce", &b64e(&file_nonce));
-    s("salt", &b64e(&salt));
     s("header", &b64e(&header));
     s("passwordHash", &password_hash);
     s("encryptedFile", &b64e(&encrypted_file));
@@ -327,10 +305,16 @@ pub fn decrypt_text(
         Ok(d) => d,
         Err(_) => return err_js("Invalid nonce"),
     };
+    if nonce.len() != NONCE_SIZE {
+        return err_js("Invalid nonce length");
+    }
     let salt = match b64d(&salt_b64) {
         Ok(d) => d,
         Err(_) => return err_js("Invalid salt"),
     };
+    if salt.len() != SALT_SIZE {
+        return err_js("Invalid salt length");
+    }
     let header = match b64d(&header_b64) {
         Ok(d) => d,
         Err(_) => return err_js("Invalid header"),
@@ -372,17 +356,21 @@ pub fn decrypt_file(
         Ok(d) => d,
         Err(_) => return err_js("Invalid nonce"),
     };
+    if nonce.len() != NONCE_SIZE {
+        return err_js("Invalid nonce length");
+    }
     let salt = match b64d(&salt_b64) {
         Ok(d) => d,
         Err(_) => return err_js("Invalid salt"),
     };
+    if salt.len() != SALT_SIZE {
+        return err_js("Invalid salt length");
+    }
     let header = match b64d(&header_b64) {
         Ok(d) => d,
         Err(_) => return err_js("Invalid header"),
     };
 
-    // Parse the embedded meta_nonce from the front of the metadata blob.
-    // Layout: meta_nonce (24 bytes) || ciphertext
     if enc_meta_blob.len() <= NONCE_SIZE {
         return err_js("Encrypted metadata too short");
     }
@@ -405,7 +393,6 @@ pub fn decrypt_file(
 
     let file_name = metadata["file_name"].as_str().unwrap_or("").to_string();
     let file_type = metadata["file_type"].as_str().unwrap_or("").to_string();
-    // Return file data as standard base64 to match what base64ToBlob() expects.
     let file_data_b64 = STANDARD.encode(&file_data);
 
     let obj = js_sys::Object::new();
@@ -421,5 +408,8 @@ pub fn decrypt_file(
 #[wasm_bindgen(js_name = "hashPassword")]
 pub fn hash_password(password: String, salt_b64: String) -> Result<String, JsValue> {
     let salt = b64d(&salt_b64).map_err(|e| JsValue::from_str(&e))?;
+    if salt.len() != SALT_SIZE {
+        return Err(JsValue::from_str("Invalid salt length"));
+    }
     Ok(hash_password_internal(&password, &salt))
 }
