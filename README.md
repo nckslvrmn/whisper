@@ -1,32 +1,31 @@
-# 🔐 Whisper
+# Whisper
 
-> End-to-end encrypted secret sharing service with WebAssembly-powered client-side encryption. Share sensitive information with true zero-knowledge architecture - your secrets are encrypted in your browser before ever leaving your device.
+> End-to-end encrypted secret sharing service with WebAssembly-powered client-side encryption. Share sensitive information with true zero-knowledge architecture — your secrets are encrypted in your browser before ever leaving your device.
 
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.23-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/github/license/nckslvrmn/whisper)](LICENSE)
-[![Security](https://img.shields.io/badge/encryption-AES--256--GCM-green?logo=shield)](https://en.wikipedia.org/wiki/Galois/Counter_Mode)
-[![KDF](https://img.shields.io/badge/KDF-scrypt-blue)](https://en.wikipedia.org/wiki/Scrypt)
-[![WASM](https://img.shields.io/badge/WASM-Enabled-orange?logo=webassembly)](https://webassembly.org/)
+[![Security](https://img.shields.io/badge/encryption-XChaCha20--Poly1305-green?logo=shield)](https://en.wikipedia.org/wiki/ChaCha20-Poly1305)
+[![KDF](https://img.shields.io/badge/KDF-Argon2id-blue)](https://en.wikipedia.org/wiki/Argon2)
+[![WASM](https://img.shields.io/badge/WASM-Rust-orange?logo=webassembly)](https://webassembly.org/)
 
-## ✨ Features
+## Features
 
-- **🔐 True End-to-End Encryption** - All encryption/decryption happens in your browser via WebAssembly
-- **🔒 Military-Grade Encryption** - AES-256-GCM ensures confidentiality, integrity, and authenticity
-- **⏱️ Self-Destructing Secrets** - Set view limits and watch secrets vanish after access
-- **📄 Text & File Support** - Share passwords, API keys, documents, or any sensitive files
-- **🚀 Lightning Fast** - Go backend with WASM-powered frontend for maximum performance
-- **☁️ Multi-Storage Support** - AWS (DynamoDB/S3), Google Cloud (Firestore/GCS), or local SQLite/filesystem
-- **🔑 True Zero-Knowledge** - Server only stores encrypted data and never has access to plaintext or keys
-- **🎨 Clean Web UI** - Beautiful interface with client-side encryption
-- **🛡️ Scrypt KDF** - Hardware-resistant key derivation prevents brute force attacks
-- **🌐 No Server Trust Required** - Encryption keys never leave your browser
+- **True End-to-End Encryption** — All encryption/decryption happens in your browser via a Rust-compiled WebAssembly module
+- **XChaCha20-Poly1305** — Authenticated encryption with 192-bit nonces; no nonce-reuse risk
+- **Argon2id + HKDF key splitting** — Memory-hard KDF with separate encryption and authentication keys derived via HKDF-SHA256
+- **Salt-in-passphrase architecture** — The Argon2 salt is embedded in the display passphrase and never stored or transmitted to the server; the server cannot mount an offline brute-force attack even if compromised
+- **Self-destructing secrets** — Configurable view limits and TTL expiry
+- **Text and file support** — Share passwords, API keys, documents, or any sensitive file up to 10 MB
+- **Multi-storage backend** — AWS (DynamoDB + S3), Google Cloud (Firestore + GCS), or local SQLite + filesystem
+- **Zero server trust** — Server stores only ciphertext, nonce, header, and a 64-hex-char HKDF-derived auth key; plaintext and encryption keys never leave the browser
+- **Hardened CSP** — No `unsafe-inline`; WASM permitted via `wasm-unsafe-eval` only; SRI hashes on all CDN resources
 
-## 🚀 Quick Start
+## Quick Start
 
-### 🐳 Docker Setup
+### Docker
 
 ```bash
-# Pull and run with AWS backend
+# AWS backend
 docker run -d \
   --name whisper \
   -p 8080:8080 \
@@ -35,7 +34,7 @@ docker run -d \
   -e AWS_REGION=us-east-1 \
   whisper:latest
 
-# Or with Google Cloud backend
+# Google Cloud backend
 docker run -d \
   --name whisper \
   -p 8080:8080 \
@@ -44,7 +43,7 @@ docker run -d \
   -e GCS_BUCKET=encrypted-files \
   whisper:latest
 
-# Or with local storage (SQLite + filesystem)
+# Local storage (SQLite + filesystem)
 docker run -d \
   --name whisper \
   -p 8080:8080 \
@@ -52,86 +51,70 @@ docker run -d \
   whisper:latest
 ```
 
-### 🐳 Docker Compose
+### Docker Compose
 
-Ready-to-use Docker Compose configurations are available in the `docs/` directory:
+Ready-to-use configurations are in `docs/`:
 
-- **AWS Backend**: [`docs/docker-compose.aws.yml`](docs/docker-compose.aws.yml) - DynamoDB + S3
-- **Google Cloud Backend**: [`docs/docker-compose.gcp.yml`](docs/docker-compose.gcp.yml) - Firestore + Cloud Storage
-- **Local Storage**: [`docs/docker-compose.local.yml`](docs/docker-compose.local.yml) - SQLite + filesystem with persistent volume
-
-> **Note**: All compose files require updating the image TAG and storage-specific configuration values before use. See the comments in each file for guidance.
+- **AWS**: [`docs/docker-compose.aws.yml`](docs/docker-compose.aws.yml)
+- **Google Cloud**: [`docs/docker-compose.gcp.yml`](docs/docker-compose.gcp.yml)
+- **Local**: [`docs/docker-compose.local.yml`](docs/docker-compose.local.yml)
 
 ```bash
-# Start with AWS backend (update environment variables first)
-docker-compose -f docs/docker-compose.aws.yml up -d
-
-# Start with Google Cloud backend (update project ID and add credentials)
-docker-compose -f docs/docker-compose.gcp.yml up -d
-
-# Start with local storage (no configuration needed)
 docker-compose -f docs/docker-compose.local.yml up -d
 ```
 
-### 🏗️ Build from Source
+### Build from Source
+
+Prerequisites: Go >= 1.23, Rust toolchain, `wasm-pack` 0.14.0.
 
 ```bash
-# Clone the repository
 git clone https://github.com/nckslvrmn/whisper.git
 cd whisper
 
-# Build the WASM module
+# Build the Rust WASM crypto module
 make wasm
 
-# Build the Docker image
-docker build -t whisper .
+# Build the Go server
+make server
 
-# Or build locally
-go build -o whisper main.go
+# Or build the Docker image (handles both steps)
+docker build -t whisper .
 ```
 
-## 🔧 Configuration
+`make wasm` invokes `wasm-pack build --target web` inside `wasm/` and copies the
+resulting `crypto.js` and `crypto_bg.wasm` into `web/static/`. The Dockerfile pins
+`wasm-pack` at version 0.14.0 for reproducibility.
+
+## Configuration
 
 ### Environment Variables
 
-Choose your storage provider by configuring the appropriate variables:
-
-#### ☁️ AWS Configuration
+#### AWS
 
 | Variable | Required | Description |
 |----------|:--------:|-------------|
-| `DYNAMO_TABLE` | ✅ | DynamoDB table name for storing encrypted secrets |
-| `S3_BUCKET` | ✅ | S3 bucket name for storing encrypted files |
-| `AWS_REGION` | ⚪ | AWS region (default: `us-east-1`) |
+| `DYNAMO_TABLE` | Yes | DynamoDB table name |
+| `S3_BUCKET` | Yes | S3 bucket name for encrypted files |
+| `AWS_REGION` | No | AWS region (default: `us-east-1`) |
 
-#### ☁️ Google Cloud Configuration
+#### Google Cloud
 
 | Variable | Required | Description |
 |----------|:--------:|-------------|
-| `GCP_PROJECT_ID` | ✅ | Google Cloud project ID |
-| `FIRESTORE_DATABASE` | ✅ | Firestore database name |
-| `GCS_BUCKET` | ✅ | Cloud Storage bucket name |
+| `GCP_PROJECT_ID` | Yes | Google Cloud project ID |
+| `FIRESTORE_DATABASE` | Yes | Firestore database name |
+| `GCS_BUCKET` | Yes | Cloud Storage bucket name |
 
-#### 💾 Local Storage Configuration (Default Fallback)
+#### Local Storage (default fallback)
 
-When no AWS or GCP environment variables are configured, the application automatically falls back to local storage using SQLite and the filesystem.
+Mount a volume at `/data` to persist the SQLite database and encrypted files.
+Storage priority: AWS → Google Cloud → Local.
 
-| Volume Mount | Description |
-|--------------|-------------|
-| `/data` | Mount a local directory here to persist SQLite database and encrypted files |
+## Authentication
 
-> **Note**: Storage Priority: AWS → Google Cloud → Local (fallback)
+### AWS
 
-## 🔑 Authentication
-
-### AWS Authentication
-
-Choose one of these methods:
-
-1. **IAM Role** (Recommended for EC2/ECS)
-2. **Environment Variables**: `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
-3. **AWS Profile**: Set `AWS_PROFILE`
-4. **Default Credential Chain**: Automatically tries all methods
+Use IAM roles (recommended), environment variables (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`), or the default credential chain.
 
 Required IAM permissions:
 
@@ -141,184 +124,369 @@ Required IAM permissions:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "dynamodb:PutItem",
-        "dynamodb:GetItem",
-        "dynamodb:DeleteItem",
-        "dynamodb:UpdateItem"
-      ],
+      "Action": ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:DeleteItem", "dynamodb:UpdateItem"],
       "Resource": "arn:aws:dynamodb:*:*:table/YOUR_TABLE_NAME"
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:DeleteObject"
-      ],
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
       "Resource": "arn:aws:s3:::YOUR_BUCKET_NAME/*"
     }
   ]
 }
 ```
 
-### Google Cloud Authentication
+### Google Cloud
 
-1. **Service Account** (Recommended): Set `GOOGLE_APPLICATION_CREDENTIALS` to your key file path
-2. **Application Default Credentials**: Automatic in GCP environments
+Set `GOOGLE_APPLICATION_CREDENTIALS` to a service account key file, or rely on Application Default Credentials in GCP environments.
 
-Required roles:
+Required roles: `roles/datastore.user`, `roles/storage.objectAdmin`.
 
-- **Firestore**: `roles/datastore.user`
-- **Cloud Storage**: `roles/storage.objectAdmin`
+## Cryptographic Design
 
-## 🌐 How It Works
+### WASM Module (Rust)
 
-### End-to-End Encryption Flow
+The crypto module lives in `wasm/src/lib.rs` and is compiled to WASM via `wasm-pack`. It exports four functions to JavaScript:
 
-1. **Client-side Encryption**: When you submit a secret through the web interface:
-   - The WASM module generates a cryptographically secure passphrase
-   - Your data is encrypted using AES-256-GCM entirely in your browser
-   - Only the encrypted data is sent to the server
+| Export | Purpose |
+|--------|---------|
+| `encryptText(text, viewCount?, ttlDays?, ttlTimestamp?)` | Encrypt a text secret |
+| `encryptFile(fileDataB64, fileName, fileType, viewCount?, ttlDays?, ttlTimestamp?)` | Encrypt a file + metadata |
+| `decryptText(encryptedDataB64, passphrase, nonceB64, saltB64, headerB64)` | Decrypt a text secret |
+| `decryptFile(encryptedFileB64, encryptedMetadataB64, passphrase, nonceB64, saltB64, headerB64)` | Decrypt a file + metadata |
+| `hashPassword(password, saltB64)` | Derive the auth key for a given passphrase + salt |
 
-2. **Server Storage**: The backend:
-   - Receives only encrypted data, never plaintext
-   - Stores the encrypted blob with a unique ID
-   - Has no ability to decrypt your data
+### Key Derivation
 
-3. **Decryption**: When retrieving a secret:
-   - The encrypted data is fetched from the server
-   - Decryption happens entirely in your browser using the passphrase
-   - The server never sees the passphrase or decrypted content
-
-### WebAssembly Module
-
-The WASM module (`crypto.wasm`) provides:
-
-- `encryptText`: Encrypts text secrets with configurable view counts and TTL
-- `encryptFile`: Encrypts files with metadata
-- `decryptText`: Decrypts text secrets
-- `decryptFile`: Decrypts files and metadata
-- `hashPassword`: Creates secure password hashes
-
-All cryptographic operations use:
-
-- **AES-256-GCM** for authenticated encryption
-- **Scrypt** for key derivation (N=2^15, r=8, p=1)
-- **Cryptographically secure random** for all nonces, salts, and passphrases
-
-## 🛡️ Security Architecture
-
-### 🔐 End-to-End Encryption Details
-
-**Whisper** implements true end-to-end encryption with WebAssembly:
-
-#### Client-Side Encryption (WASM)
-
-- **Location**: All encryption happens in your browser via WebAssembly
-- **Keys**: Generated client-side, never transmitted to server
-- **Passphrase**: 32-character random string generated in browser
-- **Zero-Trust**: Server cannot decrypt data even if compromised
-
-#### AES-256-GCM
-
-- **Algorithm**: Advanced Encryption Standard with 256-bit keys
-- **Mode**: Galois/Counter Mode for authenticated encryption
-- **Benefits**: Provides confidentiality, integrity, and authenticity in a single operation
-- **Performance**: Parallelizable for high-speed encryption/decryption
-
-#### Scrypt Key Derivation
-
-- **Purpose**: Converts passphrases into encryption keys
-- **Design**: Memory-hard function resistant to ASIC/GPU attacks
-- **Parameters**: N=2^15, r=8, p=1 (32MB memory requirement)
-- **Protection**: Makes brute-force attacks economically infeasible
-
-#### Cryptographic Randomness
-
-- **Source**: Browser's Web Crypto API for client-side operations
-- **Server**: `/dev/urandom` via Go's `crypto/rand` for IDs only
-- **Usage**: Secret IDs, passphrases, salts, and nonces
-- **Entropy**: Cryptographically secure for all security operations
-
-### 🔒 Security Best Practices
-
-1. **Transport Security**: Always use HTTPS in production
-2. **Secret Limits**: Set appropriate view counts for your use case
-3. **Passphrase Storage**: Never log or persist passphrases
-4. **Infrastructure**: Use private subnets for backend services
-5. **Monitoring**: Enable CloudTrail/Cloud Audit Logs for access tracking
-
-## 🌐 Production Deployment
-
-### Recommended Architecture
-
-```text
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Clients   │────▶│  Load       │────▶│   Whisper   │
-└─────────────┘     │  Balancer   │     │  Instances  │
-                    └─────────────┘     └─────────────┘
-                                               │
-                                               ▼
-                                        ┌─────────────┐
-                                        │   Storage   │
-                                        │ (AWS/GCP)   │
-                                        └─────────────┘
+```
+passphrase (32 random chars)
+    │
+    ▼
+Argon2id(passphrase, salt, m=64MB, t=2, p=1) ──► root_key (32 bytes)
+    │
+    ▼
+HKDF-SHA256(root_key, salt)
+    ├──► enc_key  (label "whisper-encryption-v1")  — used for XChaCha20-Poly1305
+    └──► auth_key (label "whisper-auth-v1")         — hex-encoded and stored as passwordHash
 ```
 
-### Nginx Configuration Example
+**Why two keys?** The original Go implementation derived one key from scrypt and used it for both encryption *and* as the server-side authentication hash. This meant the server effectively held the encryption key. HKDF splits the root into two independent 32-byte keys so the server's `passwordHash` reveals nothing about `enc_key`.
+
+### Encryption
+
+- **Algorithm**: XChaCha20-Poly1305 (192-bit nonce, 128-bit Poly1305 tag)
+- **Nonce**: 24 random bytes per secret, stored alongside the ciphertext
+- **Header**: 16 random bytes used as Additional Authenticated Data (AAD); stored alongside the ciphertext; prevents cross-context ciphertext reuse
+- **File metadata**: Encrypted separately with its *own* random nonce (`meta_nonce`) prepended to the metadata ciphertext blob — eliminating the nonce-reuse vulnerability present in the original Go implementation (which used the same nonce for both file data and metadata under AES-GCM)
+
+### Salt-in-Passphrase Architecture
+
+The Argon2 salt (16 random bytes) is **never stored or transmitted to the server**. Instead, it is embedded directly in the display passphrase that users share:
+
+```
+display_passphrase = URL_SAFE_BASE64(salt) [24 chars] + random_chars [32 chars]
+                     └─────────────────────────────────────────────────────────┘
+                                         56 chars total
+```
+
+When decrypting, the browser splits the display passphrase at character 24 to recover the salt and the actual Argon2 passphrase. No pre-flight request to the server is needed; decryption is a single round-trip.
+
+**Security consequence**: An attacker who compromises the server's database obtains `passwordHash`, `encryptedData`, `nonce`, and `header` — but not the salt. Without the salt they cannot run Argon2 at all, making offline brute-force attacks impossible even from a fully compromised database. The attacker also needs the user's display passphrase (which contains the salt).
+
+### What the Server Stores
+
+```
+{
+  "passwordHash":      "<64-char lowercase hex — HKDF auth_key>",
+  "encryptedData":     "<URL-safe base64 ciphertext>",
+  "nonce":             "<URL-safe base64, 24 bytes>",
+  "header":            "<URL-safe base64, 16 bytes>",
+  "encryptedMetadata": "<base64, for file secrets only>",
+  "isFile":            true | false,
+  "viewCount":         1–10   (optional),
+  "ttl":               <unix timestamp> (optional)
+}
+```
+
+The server never stores or returns the salt, the passphrase, or any key material.
+
+## API Reference
+
+All endpoints accept and return JSON. Rate limit: 100 requests/IP. Body limit: 10 MB.
+
+### POST /encrypt
+
+Store an encrypted text secret.
+
+**Request**
+
+```json
+{
+  "passwordHash":  "<64-char hex>",
+  "encryptedData": "<url-safe base64 ciphertext>",
+  "nonce":         "<url-safe base64, 24 bytes>",
+  "header":        "<url-safe base64, 16 bytes>",
+  "viewCount":     1,
+  "ttl":           1735689600
+}
+```
+
+`viewCount` (1–10) and `ttl` (Unix timestamp, max 30 days out) are optional when advanced features are enabled. When advanced features are disabled they are required.
+
+**Response**
+
+```json
+{ "status": "success", "secretId": "<16-char alphanumeric ID>" }
+```
+
+### POST /encrypt_file
+
+Store an encrypted file secret. Same fields as `/encrypt`, plus:
+
+```json
+{
+  "encryptedFile":     "<standard base64 encrypted file bytes>",
+  "encryptedMetadata": "<standard base64 — meta_nonce || encrypted JSON metadata>"
+}
+```
+
+### POST /decrypt
+
+Retrieve and consume an encrypted secret.
+
+**Request**
+
+```json
+{
+  "secret_id":    "<16-char alphanumeric ID>",
+  "passwordHash": "<64-char hex>"
+}
+```
+
+**Response** (text secret)
+
+```json
+{
+  "encryptedData": "<url-safe base64 ciphertext>",
+  "nonce":         "<url-safe base64>",
+  "header":        "<url-safe base64>",
+  "isFile":        false
+}
+```
+
+**Response** (file secret)
+
+```json
+{
+  "encryptedData":     "<url-safe base64>",
+  "encryptedFile":     "<standard base64 encrypted file bytes>",
+  "encryptedMetadata": "<standard base64 — meta_nonce || encrypted metadata>",
+  "nonce":             "<url-safe base64>",
+  "header":            "<url-safe base64>",
+  "isFile":            true
+}
+```
+
+The server validates `passwordHash` with a constant-time comparison. Each successful `/decrypt` call decrements the view counter; when it reaches zero, the secret is deleted. If `ttl` has expired the secret is also deleted and `404` is returned.
+
+## Using the API Directly (No Frontend)
+
+If you want to create secret bundles without the browser UI — for scripting, CLI tools, or server-to-server use — you need to replicate the client-side crypto. The following pseudocode shows the full flow.
+
+### Storing a Text Secret
+
+```
+# 1. Generate random material
+salt        = random_bytes(16)
+passphrase  = random_printable_chars(32)   # from charset a-z A-Z 0-9 !#$%&*+-=?@_~
+nonce       = random_bytes(24)
+header      = random_bytes(16)
+
+# 2. Derive keys
+root_key    = Argon2id(password=passphrase, salt=salt,
+                       m=65536, t=2, p=1, keylen=32)
+enc_key     = HKDF-SHA256(ikm=root_key, salt=salt,
+                           info="whisper-encryption-v1", length=32)
+auth_key    = HKDF-SHA256(ikm=root_key, salt=salt,
+                           info="whisper-auth-v1",       length=32)
+
+# 3. Encrypt
+ciphertext  = XChaCha20-Poly1305.Encrypt(key=enc_key, nonce=nonce,
+                                          plaintext=secret_text,
+                                          aad=header)
+
+# 4. Encode for transport
+passwordHash    = hex_encode(auth_key)           # 64 lowercase hex chars
+encryptedData   = url_safe_base64(ciphertext)
+nonceB64        = url_safe_base64(nonce)
+headerB64       = url_safe_base64(header)
+
+# 5. POST to server
+response = POST /encrypt {
+  "passwordHash":  passwordHash,
+  "encryptedData": encryptedData,
+  "nonce":         nonceB64,
+  "header":        headerB64,
+  "viewCount":     1,
+  "ttl":           unix_timestamp(now + 7 days)
+}
+secretId = response["secretId"]
+
+# 6. Build the display passphrase to share with the recipient
+#    The first 24 chars are URL-safe base64 of the salt (ceil(16/3)*4 = 24).
+#    The next 32 chars are the raw passphrase.
+display_passphrase = url_safe_base64(salt) + passphrase   # 56 chars total
+
+# Share secretId + display_passphrase with the recipient through a secure channel.
+# The salt never touches the server at any point.
+```
+
+### Retrieving a Text Secret
+
+```
+# The recipient has: secretId, display_passphrase (56 chars)
+
+# 1. Split the display passphrase
+salt_b64    = display_passphrase[0:24]      # first 24 chars
+passphrase  = display_passphrase[24:]       # remaining 32 chars
+salt        = url_safe_base64_decode(salt_b64)
+
+# 2. Derive auth key to authenticate with the server
+root_key    = Argon2id(password=passphrase, salt=salt,
+                       m=65536, t=2, p=1, keylen=32)
+auth_key    = HKDF-SHA256(ikm=root_key, salt=salt,
+                           info="whisper-auth-v1", length=32)
+passwordHash = hex_encode(auth_key)
+
+# 3. Fetch from server
+response = POST /decrypt {
+  "secret_id":    secretId,
+  "passwordHash": passwordHash
+}
+
+# 4. Derive encryption key and decrypt locally
+enc_key     = HKDF-SHA256(ikm=root_key, salt=salt,
+                           info="whisper-encryption-v1", length=32)
+nonce       = url_safe_base64_decode(response["nonce"])
+header      = url_safe_base64_decode(response["header"])
+ciphertext  = url_safe_base64_decode(response["encryptedData"])
+
+plaintext   = XChaCha20-Poly1305.Decrypt(key=enc_key, nonce=nonce,
+                                          ciphertext=ciphertext,
+                                          aad=header)
+```
+
+### Storing a File Secret
+
+```
+# Same key derivation as text. Additionally:
+
+file_bytes       = read_file("secret.pdf")
+meta_nonce       = random_bytes(24)           # separate nonce for metadata!
+file_nonce       = random_bytes(24)
+
+encrypted_file   = XChaCha20-Poly1305.Encrypt(key=enc_key, nonce=file_nonce,
+                                               plaintext=file_bytes, aad=header)
+
+metadata_json    = json({"file_name": "secret.pdf", "file_type": "application/pdf"})
+encrypted_meta   = XChaCha20-Poly1305.Encrypt(key=enc_key, nonce=meta_nonce,
+                                               plaintext=metadata_json, aad=header)
+
+# Prepend meta_nonce to the metadata ciphertext blob
+encrypted_metadata_blob = meta_nonce + encrypted_meta
+
+response = POST /encrypt_file {
+  "passwordHash":      hex_encode(auth_key),
+  "nonce":             url_safe_base64(file_nonce),
+  "header":            url_safe_base64(header),
+  "encryptedFile":     standard_base64(encrypted_file),
+  "encryptedMetadata": standard_base64(encrypted_metadata_blob),
+  "viewCount":         1,
+  "ttl":               unix_timestamp(now + 7 days)
+}
+```
+
+**Important**: File data uses `standard_base64` (with `+`, `/`, and `=` padding).
+Nonces and headers use `url_safe_base64` (with `-`, `_`). Match the encoding exactly
+or the server will reject the request or clients will fail to decode.
+
+## Security Architecture
+
+### Content Security Policy
+
+The server sets a strict CSP with no `unsafe-inline`:
+
+```
+default-src 'self';
+script-src  'self' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com;
+style-src   'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com;
+font-src    'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com;
+img-src     'self' data:;
+connect-src 'self' https://cdnjs.cloudflare.com;
+frame-ancestors 'none';
+base-uri    'self';
+object-src  'none';
+```
+
+`wasm-unsafe-eval` is required for `WebAssembly.instantiateStreaming()` and permits
+WASM bytecode compilation only — it does not enable `eval()` for JavaScript.
+
+### Other Security Controls
+
+- **HSTS**: `max-age=31536000`
+- **X-Frame-Options**: `DENY`
+- **X-Content-Type-Options**: `nosniff`
+- **Referrer-Policy**: `strict-origin-when-cross-origin`
+- **Rate limiting**: 100 requests/IP (in-memory)
+- **Body limit**: 10 MB per request
+- **Request timeout**: 30 seconds
+- **Constant-time comparison**: `passwordHash` comparison uses `crypto/subtle`
+- **SRI hashes**: All Bootstrap and Font Awesome CDN resources are pinned with `integrity=` hashes
+
+### Known Limitations
+
+- Argon2 runs synchronously on the browser's main thread (~1–2 s UI pause during key derivation)
+- View-count decrement has a TOCTOU race; no atomic CAS is implemented in the storage layer
+- `wasm-pack` was archived in July 2025; 0.14.0 is the last release
+
+## Production Deployment
+
+### Nginx
 
 ```nginx
 server {
     listen 443 ssl http2;
     server_name secrets.yourdomain.com;
 
-    ssl_certificate /path/to/cert.pem;
+    ssl_certificate     /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
-
-    # Modern SSL configuration
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
-    ssl_prefer_server_ciphers off;
-
-    # Security headers
-    add_header Strict-Transport-Security "max-age=63072000" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
+    ssl_protocols       TLSv1.2 TLSv1.3;
 
     location / {
         proxy_pass http://localhost:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
 
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+## Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Commit your changes
+4. Open a Pull Request
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- Built with [Go](https://golang.org/) and [Echo Framework](https://echo.labstack.com/)
-- Client-side encryption via [WebAssembly](https://webassembly.org/)
-- Encryption powered by Go's [crypto](https://pkg.go.dev/crypto) package compiled to WASM
-- Cloud storage via [AWS SDK](https://aws.github.io/aws-sdk-go-v2/) and [Google Cloud SDK](https://cloud.google.com/go)
-- UI components from [Bootstrap](https://getbootstrap.com/)
-
----
-
-Made with ❤️ for keeping secrets secret
-*Remember: Once viewed, secrets are gone forever! 🔥*
+- Go backend: [Echo Framework](https://echo.labstack.com/)
+- Rust crypto: [RustCrypto](https://github.com/RustCrypto) crates (chacha20poly1305, argon2, hkdf, sha2)
+- WASM toolchain: [wasm-bindgen](https://github.com/rustwasm/wasm-bindgen) / [wasm-pack](https://github.com/rustwasm/wasm-pack)
+- Cloud storage: [AWS SDK Go v2](https://github.com/aws/aws-sdk-go-v2), [Google Cloud Go SDK](https://github.com/googleapis/google-cloud-go)
+- UI: [Bootstrap 5.3.8](https://getbootstrap.com/), [Font Awesome 7](https://fontawesome.com/)
