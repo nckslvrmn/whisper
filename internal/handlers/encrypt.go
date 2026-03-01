@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	echo "github.com/labstack/echo/v4"
 	"github.com/nckslvrmn/whisper/internal/config"
@@ -16,14 +17,12 @@ type E2EData struct {
 	EncryptedFile     string `json:"encryptedFile,omitempty"`
 	EncryptedMetadata string `json:"encryptedMetadata,omitempty"`
 	Nonce             string `json:"nonce"`
-	Salt              string `json:"salt"`
 	Header            string `json:"header"`
 	ViewCount         *int   `json:"viewCount,omitempty"`
 	TTL               *int64 `json:"ttl,omitempty"`
 	IsFile            bool   `json:"isFile"`
 }
 
-// Validate checks if the E2EData is valid for the given operation
 func (e *E2EData) Validate(isFile bool) error {
 	if e.PasswordHash == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "missing password hash")
@@ -103,15 +102,29 @@ func storeEncryptedDataWithId(c echo.Context, data *E2EData, isFile bool, secret
 		"encryptedData":     data.EncryptedData,
 		"encryptedMetadata": data.EncryptedMetadata,
 		"nonce":             data.Nonce,
-		"salt":              data.Salt,
 		"header":            data.Header,
 		"isFile":            isFile,
 	}
 
 	if data.ViewCount != nil {
-		secretData["viewCount"] = *data.ViewCount
+		vc := *data.ViewCount
+		if vc < 0 || vc > 10 {
+			return echo.NewHTTPError(http.StatusBadRequest, "view count must be between 1 and 10")
+		}
+		if vc > 0 {
+			// 0 means unlimited — don't store viewCount, no expiry-by-view.
+			secretData["viewCount"] = vc
+		}
 	}
 	if data.TTL != nil {
+		now := time.Now().Unix()
+		maxTTL := time.Now().Add(30 * 24 * time.Hour).Unix()
+		if *data.TTL <= now {
+			return echo.NewHTTPError(http.StatusBadRequest, "TTL must be in the future")
+		}
+		if *data.TTL > maxTTL {
+			return echo.NewHTTPError(http.StatusBadRequest, "TTL cannot exceed 30 days")
+		}
 		secretData["ttl"] = *data.TTL
 	}
 

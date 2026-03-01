@@ -17,12 +17,12 @@
 
   <div class="tab-content" id="encryptionTabContent">
     <div class="tab-pane fade show active" id="textForm" role="tabpanel" aria-labelledby="text-tab">
-      <form onsubmit="postSecret(event)" id="form" class="p-3 form-signin">
+      <form id="textFormElement" class="p-3 form-signin">
         <div class="form-group">
           <label for="secretText" class="form-label">Secret Content:</label>
-          <textarea type="text" id="secretText" name="secret" class="form-control" autocomplete="off"
+          <textarea id="secretText" name="secret" class="form-control" autocomplete="off"
             placeholder="Enter your secret message, password, or link... (⌘K or Ctrl+K to focus)" rows="4"
-            aria-label="Secret content to encrypt"></textarea>
+            aria-label="Secret content to encrypt" required autofocus></textarea>
         </div>
         <div class="form-group">
           <label for="ViewCount" class="form-label">View Count:</label>
@@ -90,11 +90,38 @@
     </div>
 
     <div class="tab-pane fade" id="fileForm" role="tabpanel" aria-labelledby="file-tab">
-      <form onsubmit="postSecretFile(event)" id="fileFormElement" class="pt-3 px-3 form-signin">
+      <form id="fileFormElement" class="pt-3 px-3 form-signin">
         <div class="mb-3 form-group">
           <label for="file" class="form-label">Select File:</label>
-          <input class="form-control" id="file" ref="file" type="file" aria-label="File to encrypt (max 10MB)">
+          <input class="form-control" id="file" type="file" aria-label="File to encrypt (max 10MB)" required>
           <small class="form-text text-muted">Maximum file size: 10MB</small>
+        </div>
+        <div class="form-group">
+          <label for="ViewCountFile" class="form-label">View Count:</label>
+          <select name="view_count" class="form-control form-select" id="ViewCountFile"
+            aria-label="Number of times the file can be downloaded">
+            <option selected>1</option>
+            <option>2</option>
+            <option>3</option>
+            <option>4</option>
+            <option>5</option>
+            <option>6</option>
+            <option>7</option>
+            <option>8</option>
+            <option>9</option>
+            <option>10</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="TTLDaysFile" class="form-label">Days Before Expiration:</label>
+          <select name="ttl_days" class="form-control form-select" id="TTLDaysFile"
+            aria-label="Number of days before the file expires">
+            <option>1</option>
+            <option>3</option>
+            <option selected>7</option>
+            <option>14</option>
+            <option>30</option>
+          </select>
         </div>
 
         {{if .AdvancedFeatures}}
@@ -126,9 +153,8 @@
         </div>
         {{end}}
 
-        <br />
-        <div class="form-group d-grid gap-2">
-          <button type="submit" class="btn btn-primary" id="submitBtnFile" aria-label="Create secret link for file">
+        <div class="form-group">
+          <button type="submit" class="btn btn-primary w-100" id="submitBtnFile" aria-label="Create secret link for file">
             <span id="submitBtnFileText">Create Secret Link</span>
           </button>
         </div>

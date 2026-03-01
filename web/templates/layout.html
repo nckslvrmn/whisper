@@ -12,11 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap"
-    rel="stylesheet" media="print" onload="this.media='all'">
-  <noscript>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap"
-      rel="stylesheet">
-  </noscript>
+    rel="stylesheet">
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/css/bootstrap.min.css"
     integrity="sha512-2bBQCjcnw658Lho4nlXJcc6WkV/UxpE/sAokbXPxQNGqmNdQrWqtw26Ns9kFF/yG792pKR1Sx8/Y1Lf1XN4GKA=="
@@ -27,8 +23,8 @@
   <link rel="stylesheet" href="/static/site.css" />
 </head>
 
-<body class="text-left">
-  <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 11">
+<body>
+  <div class="toast-container position-fixed top-0 end-0 p-3">
     <div id="toastTemplate" class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true">
       <div class="d-flex w-100 align-items-center">
         <div class="toast-body flex-grow-1">
@@ -58,66 +54,11 @@
     </div>
   </div>
 
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"
-    integrity="sha512-7Pi/otdlbbCR+LnW+F7PwFcSDJOuUJB3OxtEHbg4vSMvzvJjde4Po1v4BR9Gdc9aXNUNFVUY+SK51wWT8WF0Gg=="
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/js/bootstrap.bundle.min.js"
+    integrity="sha512-HvOjJrdwNpDbkGJIG2ZNqDlVqMo77qbs4Me4cah0HoDrfhrbA+8SBlZn1KrvAQw7cILLPFJvdwIgphzQmMm+Pw=="
     crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script defer>
-    window.toast = {
-      _show: function (type, message, duration = 5000) {
-        const template = document.getElementById('toastTemplate');
-        const toastEl = template.cloneNode(true);
-        toastEl.removeAttribute('id');
-
-        const icon = toastEl.querySelector('.toast-icon');
-        const messageEl = toastEl.querySelector('.toast-message');
-
-        if (type === 'success') {
-          icon.className = 'fas fa-check toast-icon me-2';
-          toastEl.style.backgroundColor = 'var(--cyan)';
-        } else if (type === 'error') {
-          icon.className = 'fas fa-exclamation-triangle toast-icon me-2';
-          toastEl.style.backgroundColor = 'var(--red)';
-        } else if (type === 'info') {
-          icon.className = 'fas fa-spinner fa-spin toast-icon me-2';
-          toastEl.style.backgroundColor = 'var(--purple)';
-        }
-
-        messageEl.textContent = message;
-
-        const container = document.querySelector('.toast-container');
-        container.appendChild(toastEl);
-
-        const bsToast = new bootstrap.Toast(toastEl, {
-          delay: duration,
-          autohide: type !== 'info'
-        });
-        bsToast.show();
-
-        toastEl.addEventListener('hidden.bs.toast', () => {
-          toastEl.remove();
-        });
-
-        return toastEl;
-      },
-      success: function (message) {
-        return this._show('success', message);
-      },
-      error: function (message) {
-        return this._show('error', message);
-      },
-      open: function (config) {
-        return this._show(config.type, config.message, config.duration || 5000);
-      },
-      dismiss: function (toastEl) {
-        if (toastEl) {
-          const bsToast = bootstrap.Toast.getInstance(toastEl);
-          if (bsToast) bsToast.hide();
-        }
-      }
-    };
-  </script>
-  <script defer src="/static/wasm_exec.js"></script>
-  <script defer src="/static/main.js"></script>
+  <script defer src="/static/toast.js"></script>
+  <script type="module" src="/static/main.js"></script>
 </body>
 
 </html>

@@ -81,7 +81,7 @@ func (f *FirestoreStore) DeleteSecret(secretId string) error {
 	_, err := f.client.Collection(config.FirestoreDatabase).Doc(secretId).Delete(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			return nil // Document already deleted or doesn't exist
+			return nil
 		}
 		return fmt.Errorf("failed to delete secret from Firestore: %w", err)
 	}

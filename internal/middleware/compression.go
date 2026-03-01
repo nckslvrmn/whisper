@@ -164,8 +164,16 @@ func compressGzip(srcPath string) error {
 }
 
 func getContentType(path string) string {
-	ext := filepath.Ext(path)
-	contentType := mime.TypeByExtension(ext)
+	// Hardcode types that may be absent from minimal OS MIME databases (e.g. Alpine).
+	switch filepath.Ext(path) {
+	case ".wasm":
+		return "application/wasm"
+	case ".js", ".mjs":
+		return "application/javascript; charset=utf-8"
+	case ".css":
+		return "text/css; charset=utf-8"
+	}
+	contentType := mime.TypeByExtension(filepath.Ext(path))
 	if contentType == "" {
 		return "application/octet-stream"
 	}

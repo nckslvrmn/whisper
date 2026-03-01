@@ -1,30 +1,29 @@
+import init, { encryptText, encryptFile, decryptText, decryptFile, hashPassword } from '/static/crypto.js';
+
+// Salt is embedded in the first SALT_B64_LEN characters of the display
+// passphrase as URL_SAFE (padded) base64. The rest is the actual passphrase.
+// This matches the layout produced by the Rust encryptText/encryptFile exports.
+const SALT_B64_LEN = 24;
+
+function splitPassphrase(displayPassphrase) {
+  if (displayPassphrase.length < SALT_B64_LEN + 1) {
+    throw new Error('Invalid passphrase format');
+  }
+  return {
+    saltB64: displayPassphrase.slice(0, SALT_B64_LEN),
+    passphrase: displayPassphrase.slice(SALT_B64_LEN),
+  };
+}
+
 const TIMEOUTS = {
-  WASM_INIT: 100,
   FADE_TRANSITION: 200,
-  FORM_REMOVE: 300,
   COPY_RESET: 2000,
-  FOCUS_DELAY: 100
 };
 
 let wasmReady = false;
-let wasmCrypto = null;
 async function initWASM() {
   if (wasmReady) return;
-
-  const go = new Go();
-  const result = await WebAssembly.instantiateStreaming(
-    fetch('/static/crypto.wasm'),
-    go.importObject
-  );
-
-  go.run(result.instance);
-  await new Promise(resolve => setTimeout(resolve, TIMEOUTS.WASM_INIT));
-
-  wasmCrypto = window.wasmCrypto;
-  if (!wasmCrypto) {
-    throw new Error('WASM crypto module failed to initialize');
-  }
-
+  await init('/static/crypto_bg.wasm');
   wasmReady = true;
 }
 
@@ -116,11 +115,13 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
     const result = encryptFn();
     if (result.error) throw new Error(result.error);
 
+    // Salt is NOT sent to the server — it is embedded in result.passphrase.
+    // The server therefore cannot assist offline Argon2 attacks even if the
+    // passwordHash store is fully compromised.
     const responseData = await postJSON(endpoint, {
       passwordHash: result.passwordHash,
       encryptedData: result.encryptedData || result.encryptedMetadata,
       nonce: result.nonce,
-      salt: result.salt,
       header: result.header,
       viewCount: result.viewCount,
       ttl: result.ttl,
@@ -134,8 +135,10 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
     const contentId = 'secretContent_' + Date.now();
 
     setResp('success',
-      `<span class="checkmark">✓</span> <strong>Secret successfully stored</strong><br/><br/><div id="${contentId}"><a href="${secret_link}" target="_blank">${secret_link}</a><br/><br/>Passphrase: <code>${result.passphrase}</code></div>
-      <button class="copy-btn-float" onclick="copyToClipboard('${contentId}', this)" aria-label="Copy link and passphrase">
+      `<span class="checkmark">✓</span> <strong>Secret successfully stored</strong>
+      <div class="mt-3" id="${contentId}"><a href="${secret_link}" target="_blank">${secret_link}</a>
+      <div class="mt-2">Passphrase: <code>${result.passphrase}</code></div></div>
+      <button class="copy-btn-float" data-copy-target="${contentId}" aria-label="Copy link and passphrase">
         <i class="fas fa-copy"></i> Copy
       </button>`,
       false);
@@ -171,17 +174,20 @@ async function postSecretFile(event) {
     return;
   }
 
+  const fileFormData = new FormData(document.getElementById('fileFormElement'));
   const { viewCount, ttlDays, ttlTimestamp } = getTTLConfig(
     'disableTTLFile',
     'disableViewCountFile',
-    'exactTTLFile'
+    'exactTTLFile',
+    fileFormData.get('view_count') || '1',
+    fileFormData.get('ttl_days') || '7'
   );
 
   const arrayBuffer = await file.arrayBuffer();
   const base64 = arrayBufferToBase64(arrayBuffer);
 
   await handleEncryption(
-    () => wasmCrypto.encryptFile(base64, file.name, file.type, viewCount, ttlDays, ttlTimestamp),
+    () => encryptFile(base64, file.name, file.type, viewCount, ttlDays, ttlTimestamp),
     '/encrypt_file',
     { isFile: true }
   );
@@ -190,7 +196,7 @@ async function postSecretFile(event) {
 async function postSecret(event) {
   event.preventDefault();
 
-  const form = document.getElementById("form");
+  const form = document.getElementById('textFormElement');
   if (!form) {
     toast.error('Form not found');
     return;
@@ -213,7 +219,7 @@ async function postSecret(event) {
   );
 
   await handleEncryption(
-    () => wasmCrypto.encryptText(secret, viewCount, ttlDays, ttlTimestamp),
+    () => encryptText(secret, viewCount, ttlDays, ttlTimestamp),
     '/encrypt',
     { isFile: false }
   );
@@ -222,7 +228,8 @@ async function postSecret(event) {
 async function getSecret(event) {
   event.preventDefault();
 
-  const formData = new FormData(document.getElementById("form"));
+  const form = document.getElementById('secretForm');
+  const formData = new FormData(form);
   const passphrase = formData.get('passphrase');
   const secretId = window.location.pathname.split('/').pop();
 
@@ -231,9 +238,8 @@ async function getSecret(event) {
     return;
   }
 
-  const form = document.getElementById('form');
-  const submitBtn = form.querySelector('input[type="submit"]');
-  const originalValue = submitBtn ? submitBtn.value : '';
+  const submitBtn = document.getElementById('secretSubmitBtn');
+  const submitBtnText = document.getElementById('secretSubmitBtnText');
   let infoToast = null;
 
   try {
@@ -241,7 +247,7 @@ async function getSecret(event) {
 
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.value = 'Decrypting...';
+      submitBtnText.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Decrypting...';
     }
 
     infoToast = toast.open({
@@ -249,31 +255,28 @@ async function getSecret(event) {
       message: 'Decrypting your secret...'
     });
 
-    const saltData = await postJSON('/decrypt', {
-      secret_id: secretId,
-      getSalt: true
-    }).catch(() => {
-      throw new Error('Secret not found or already viewed');
-    });
+    // The display passphrase contains the salt in its first SALT_B64_LEN chars.
+    // Split it here so we can authenticate and decrypt in a single server round-trip.
+    const { saltB64, passphrase: actualPassphrase } = splitPassphrase(passphrase);
+    const passwordHash = hashPassword(actualPassphrase, saltB64);
 
-    const passwordHash = wasmCrypto.hashPassword(passphrase, saltData.salt);
     const data = await postJSON('/decrypt', {
       secret_id: secretId,
       passwordHash: passwordHash
     }).catch(err => {
       if (err.message === 'NotFound') throw new Error('Secret not found or already viewed');
-      throw new Error('Error retrieving the secret');
+      throw new Error('Invalid passphrase or secret not found');
     });
 
     if (infoToast) toast.dismiss(infoToast);
 
     if (data.isFile) {
-      const result = wasmCrypto.decryptFile(
+      const result = decryptFile(
         data.encryptedFile,
         data.encryptedMetadata,
-        passphrase,
+        actualPassphrase,
         data.nonce,
-        data.salt,
+        saltB64,
         data.header
       );
 
@@ -287,45 +290,65 @@ async function getSecret(event) {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), TIMEOUTS.FOCUS_DELAY);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
 
-      setResp('success', `<span class="checkmark">✓</span> File "${result.fileName}" downloaded successfully`, false);
+      const fileNameId = 'downloadedFileName_' + Date.now();
+      setResp('success', `<span class="checkmark">✓</span> File "<span id="${fileNameId}"></span>" downloaded successfully`, false);
+      const fileNameEl = document.getElementById(fileNameId);
+      if (fileNameEl) fileNameEl.textContent = result.fileName;
       toast.success('File downloaded successfully');
     } else {
-      const result = wasmCrypto.decryptText(
+      const result = decryptText(
         data.encryptedData,
-        passphrase,
+        actualPassphrase,
         data.nonce,
-        data.salt,
+        saltB64,
         data.header
       );
 
       if (result.error) throw new Error(result.error);
       const contentId = 'decryptedContent_' + Date.now();
-      setResp('success', `<span class="checkmark">✓</span> <strong>Decrypted Secret:</strong><br/><br/><div id="${contentId}">${result.data}</div>
-      <button class="copy-btn-float" onclick="copyToClipboard('${contentId}', this)" aria-label="Copy decrypted secret">
+      // Set structure via innerHTML but inject the actual secret content via
+      // textContent only — prevents XSS if the secret contains HTML or JS.
+      setResp('success', `<span class="checkmark">✓</span> <strong>Decrypted Secret:</strong>
+      <div class="mt-3" id="${contentId}" style="white-space:pre-wrap"></div>
+      <button class="copy-btn-float" data-copy-target="${contentId}" aria-label="Copy decrypted secret">
         <i class="fas fa-copy"></i> Copy
       </button>`, false);
+      const contentEl = document.getElementById(contentId);
+      if (contentEl) contentEl.textContent = result.data;
       toast.success('Secret decrypted successfully!');
     }
 
+    // Collapse the passphrase form — lock height, force reflow, then animate to 0.
     if (form) {
-      form.style.maxHeight = form.offsetHeight + 'px';
+      const h = form.offsetHeight;
+      form.style.height = h + 'px';
+      form.style.overflow = 'hidden';
+      void form.offsetHeight; // force reflow so browser commits the "from" value
+      form.style.transition = 'height 0.35s ease, opacity 0.25s ease, padding 0.3s ease';
       requestAnimationFrame(() => {
-        form.classList.add('form-hide');
+        form.style.height = '0';
+        form.style.opacity = '0';
+        form.style.padding = '0';
       });
+      form.addEventListener('transitionend', () => {
+        form.style.display = 'none';
+      }, { once: true });
     }
+
+    scrollToResults();
   } catch (error) {
     console.error('Error:', error);
     if (infoToast) toast.dismiss(infoToast);
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.value = originalValue;
+      submitBtnText.textContent = 'Decrypt Secret';
     }
-    const message = error.message.includes('passphrase') ? 'Invalid passphrase' :
-      error.message.includes('not found') ? error.message :
-        'There was an error decrypting the secret';
-    toast.error(message);
+    const msg = error.message;
+    const display = (msg.includes('not found') || msg.includes('already viewed'))
+      ? msg : 'There was an error decrypting the secret';
+    toast.error(display);
   }
 }
 
@@ -370,11 +393,8 @@ function setResp(level, content, text_resp) {
 
 function scrollToResults() {
   setTimeout(() => {
-    window.scrollTo({
-      top: document.documentElement.scrollHeight,
-      behavior: 'smooth'
-    });
-  }, 400);
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 350);
 }
 
 function copyToClipboard(elementId, button) {
@@ -382,21 +402,19 @@ function copyToClipboard(elementId, button) {
   if (!element) return;
 
   let text = element.textContent || element.innerText;
-  text = text.replace("Passphrase:", "\nPassphrase:");
+  text = text.replace('Passphrase:', '\nPassphrase:');
 
   navigator.clipboard.writeText(text).then(() => {
     const originalHTML = button.innerHTML;
 
     button.innerHTML = '<i class="fas fa-check"></i> Copied!';
     button.classList.add('copied');
-    button.style.scale = '1.05';
 
     toast.success('Copied to clipboard!');
 
     setTimeout(() => {
       button.innerHTML = originalHTML;
       button.classList.remove('copied');
-      button.style.scale = '';
     }, TIMEOUTS.COPY_RESET);
   }).catch(err => {
     console.error('Failed to copy:', err);
@@ -425,23 +443,28 @@ function clearForm(isFile) {
   }
 }
 
+// Event delegation for copy buttons injected via innerHTML — avoids inline onclick
+// handlers so the CSP does not need 'unsafe-inline'.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.copy-btn-float[data-copy-target]');
+  if (btn) copyToClipboard(btn.dataset.copyTarget, btn);
+});
+
 window.addEventListener('DOMContentLoaded', async () => {
   try {
     await initWASM();
-    console.log('WASM crypto module loaded successfully');
   } catch (error) {
     console.error('Failed to load WASM module:', error);
   }
+
+  document.getElementById('textFormElement')?.addEventListener('submit', postSecret);
+  document.getElementById('fileFormElement')?.addEventListener('submit', postSecretFile);
+  document.getElementById('secretForm')?.addEventListener('submit', getSecret);
 
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('type') === 'file') {
     const fileTab = new bootstrap.Tab(document.getElementById('file-tab'));
     fileTab.show();
-  }
-
-  const textarea = document.getElementById('secretText');
-  if (textarea) {
-    setTimeout(() => textarea.focus(), TIMEOUTS.FOCUS_DELAY);
   }
 
   const fileInput = document.getElementById('file');
@@ -451,7 +474,6 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
-
       if (file && helperText) {
         const fileSize = (file.size / 1024).toFixed(2);
         helperText.textContent = `Selected: ${file.name} (${fileSize} KB)`;

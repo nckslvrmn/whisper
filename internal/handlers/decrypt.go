@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	echo "github.com/labstack/echo/v4"
 	"github.com/nckslvrmn/whisper/internal/storage"
@@ -14,7 +15,6 @@ func Decrypt(c echo.Context) error {
 	var requestData struct {
 		SecretId     string `json:"secret_id"`
 		PasswordHash string `json:"passwordHash"`
-		GetSalt      bool   `json:"getSalt,omitempty"`
 	}
 
 	err := c.Bind(&requestData)
@@ -41,10 +41,17 @@ func Decrypt(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "invalid secret data")
 	}
 
-	if requestData.GetSalt {
-		return c.JSON(http.StatusOK, map[string]any{
-			"salt": secretData["salt"],
-		})
+	// Enforce TTL at read time — storage-layer cleanup is async and may lag.
+	if ttlRaw, exists := secretData["ttl"]; exists {
+		if ttl, ok := ttlRaw.(float64); ok && ttl > 0 && time.Now().Unix() > int64(ttl) {
+			secretStore.DeleteSecret(requestData.SecretId)
+			if isExpiredFile, ok := secretData["isFile"].(bool); ok && isExpiredFile {
+				if fs := storage.GetFileStore(); fs != nil {
+					fs.DeleteFile(requestData.SecretId)
+				}
+			}
+			return echo.NewHTTPError(http.StatusNotFound, "Secret not found or already viewed")
+		}
 	}
 
 	if requestData.PasswordHash == "" {
@@ -68,7 +75,6 @@ func Decrypt(c echo.Context) error {
 		"encryptedData":     secretData["encryptedData"],
 		"encryptedMetadata": secretData["encryptedMetadata"],
 		"nonce":             secretData["nonce"],
-		"salt":              secretData["salt"],
 		"header":            secretData["header"],
 		"isFile":            isFile,
 	}

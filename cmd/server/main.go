@@ -70,6 +70,25 @@ func main() {
 
 	e.Renderer = t
 
+	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
+		XSSProtection:      "1; mode=block",
+		ContentTypeNosniff: "nosniff",
+		XFrameOptions:      "DENY",
+		HSTSMaxAge:         31536000,
+		ContentSecurityPolicy: "default-src 'self'; " +
+			// 'wasm-unsafe-eval' is required for WebAssembly.instantiateStreaming().
+			// It permits WASM bytecode compilation only — not arbitrary JS eval.
+			"script-src 'self' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com; " +
+			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " +
+			"font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; " +
+			"img-src 'self' data:; " +
+			"connect-src 'self' https://cdnjs.cloudflare.com; " +
+			"frame-ancestors 'none'; " +
+			"base-uri 'self'; " +
+			"object-src 'none';",
+		ReferrerPolicy: "strict-origin-when-cross-origin",
+	}))
+
 	e.Use(compressedCache.Middleware)
 	e.Static("/static", "web/static")
 
@@ -88,8 +107,8 @@ func main() {
 			return len(c.Path()) >= 7 && c.Path()[:7] == "/static"
 		},
 	}))
-	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
+	e.Use(middleware.RequestLogger())
 
 	e.Use(middleware.ContextTimeoutWithConfig(middleware.ContextTimeoutConfig{
 		Timeout: 30 * time.Second,
