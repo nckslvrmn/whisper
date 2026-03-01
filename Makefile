@@ -6,11 +6,14 @@ deps:
 	@go mod download
 
 wasm:
-	@echo "Building WASM module with Rust/wasm-pack..."
-	cd wasm && PATH="$(HOME)/.cargo/bin:$(PATH)" wasm-pack build --target web --out-name crypto --out-dir ../wasm_pkg
-	cp wasm_pkg/crypto.js web/static/crypto.js
-	cp wasm_pkg/crypto_bg.wasm web/static/crypto_bg.wasm
-	rm -rf wasm_pkg
+	@echo "Building WASM module..."
+	cd wasm && cargo build --release --target wasm32-unknown-unknown
+	PATH="$(HOME)/.cargo/bin:$(PATH)" wasm-bindgen --target web --out-name crypto \
+		--out-dir web/static/ \
+		wasm/target/wasm32-unknown-unknown/release/whisper_crypto.wasm
+	@if command -v wasm-opt >/dev/null 2>&1; then \
+		wasm-opt -Os web/static/crypto_bg.wasm -o web/static/crypto_bg.wasm; \
+	fi
 	@gzip -9 -k -f web/static/crypto_bg.wasm
 	@if command -v brotli >/dev/null 2>&1; then \
 		brotli -9 -k -f web/static/crypto_bg.wasm; \
@@ -29,4 +32,3 @@ clean:
 	rm -f web/static/wasm_exec.js
 	rm -f web/static/*.br
 	rm -f web/static/*.gz
-	rm -rf wasm_pkg
