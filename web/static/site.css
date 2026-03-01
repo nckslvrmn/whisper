@@ -384,7 +384,7 @@ input[type="file"].form-control {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   z-index: 10;
 
-  i {
+  i.fas {
     color: var(--background);
     font-size: 0.75rem;
   }
