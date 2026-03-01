@@ -3,8 +3,12 @@ whisper
 *.exe
 
 # WASM files (generated during build)
-web/static/crypto.wasm
-web/static/wasm_exec.js
+web/static/crypto_bg.wasm
+web/static/crypto.js
+
+# Rust build artifacts
+wasm/target/
+wasm_pkg/
 
 # Static Pre-compiled
 web/static/*.gz

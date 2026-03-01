@@ -1,7 +1,12 @@
 FROM public.ecr.aws/docker/library/golang:alpine AS base
 COPY . /src
 WORKDIR /src
-RUN apk add --no-cache brotli gzip make g++ && make
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN apk add --no-cache brotli gzip make g++ curl musl-dev && \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path && \
+    rustup target add wasm32-unknown-unknown && \
+    cargo install wasm-pack && \
+    make
 
 FROM public.ecr.aws/docker/library/alpine:latest
 RUN apk add --no-cache ca-certificates

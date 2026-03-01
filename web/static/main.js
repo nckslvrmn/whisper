@@ -1,5 +1,6 @@
+import init, { encryptText, encryptFile, decryptText, decryptFile, hashPassword } from '/static/crypto.js';
+
 const TIMEOUTS = {
-  WASM_INIT: 100,
   FADE_TRANSITION: 200,
   FORM_REMOVE: 300,
   COPY_RESET: 2000,
@@ -7,24 +8,9 @@ const TIMEOUTS = {
 };
 
 let wasmReady = false;
-let wasmCrypto = null;
 async function initWASM() {
   if (wasmReady) return;
-
-  const go = new Go();
-  const result = await WebAssembly.instantiateStreaming(
-    fetch('/static/crypto.wasm'),
-    go.importObject
-  );
-
-  go.run(result.instance);
-  await new Promise(resolve => setTimeout(resolve, TIMEOUTS.WASM_INIT));
-
-  wasmCrypto = window.wasmCrypto;
-  if (!wasmCrypto) {
-    throw new Error('WASM crypto module failed to initialize');
-  }
-
+  await init('/static/crypto_bg.wasm');
   wasmReady = true;
 }
 
@@ -181,7 +167,7 @@ async function postSecretFile(event) {
   const base64 = arrayBufferToBase64(arrayBuffer);
 
   await handleEncryption(
-    () => wasmCrypto.encryptFile(base64, file.name, file.type, viewCount, ttlDays, ttlTimestamp),
+    () => encryptFile(base64, file.name, file.type, viewCount, ttlDays, ttlTimestamp),
     '/encrypt_file',
     { isFile: true }
   );
@@ -213,7 +199,7 @@ async function postSecret(event) {
   );
 
   await handleEncryption(
-    () => wasmCrypto.encryptText(secret, viewCount, ttlDays, ttlTimestamp),
+    () => encryptText(secret, viewCount, ttlDays, ttlTimestamp),
     '/encrypt',
     { isFile: false }
   );
@@ -256,7 +242,7 @@ async function getSecret(event) {
       throw new Error('Secret not found or already viewed');
     });
 
-    const passwordHash = wasmCrypto.hashPassword(passphrase, saltData.salt);
+    const passwordHash = hashPassword(passphrase, saltData.salt);
     const data = await postJSON('/decrypt', {
       secret_id: secretId,
       passwordHash: passwordHash
@@ -268,7 +254,7 @@ async function getSecret(event) {
     if (infoToast) toast.dismiss(infoToast);
 
     if (data.isFile) {
-      const result = wasmCrypto.decryptFile(
+      const result = decryptFile(
         data.encryptedFile,
         data.encryptedMetadata,
         passphrase,
@@ -289,10 +275,13 @@ async function getSecret(event) {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), TIMEOUTS.FOCUS_DELAY);
 
-      setResp('success', `<span class="checkmark">✓</span> File "${result.fileName}" downloaded successfully`, false);
+      const fileNameId = 'downloadedFileName_' + Date.now();
+      setResp('success', `<span class="checkmark">✓</span> File "<span id="${fileNameId}"></span>" downloaded successfully`, false);
+      const fileNameEl = document.getElementById(fileNameId);
+      if (fileNameEl) fileNameEl.textContent = result.fileName;
       toast.success('File downloaded successfully');
     } else {
-      const result = wasmCrypto.decryptText(
+      const result = decryptText(
         data.encryptedData,
         passphrase,
         data.nonce,
@@ -302,10 +291,14 @@ async function getSecret(event) {
 
       if (result.error) throw new Error(result.error);
       const contentId = 'decryptedContent_' + Date.now();
-      setResp('success', `<span class="checkmark">✓</span> <strong>Decrypted Secret:</strong><br/><br/><div id="${contentId}">${result.data}</div>
+      // Set structure via innerHTML but inject the actual secret content via
+      // textContent only — prevents XSS if the secret contains HTML or JS.
+      setResp('success', `<span class="checkmark">✓</span> <strong>Decrypted Secret:</strong><br/><br/><div id="${contentId}" style="white-space:pre-wrap"></div>
       <button class="copy-btn-float" onclick="copyToClipboard('${contentId}', this)" aria-label="Copy decrypted secret">
         <i class="fas fa-copy"></i> Copy
       </button>`, false);
+      const contentEl = document.getElementById(contentId);
+      if (contentEl) contentEl.textContent = result.data;
       toast.success('Secret decrypted successfully!');
     }
 
@@ -424,6 +417,11 @@ function clearForm(isFile) {
     if (textarea) textarea.value = '';
   }
 }
+
+window.postSecret = postSecret;
+window.postSecretFile = postSecretFile;
+window.getSecret = getSecret;
+window.copyToClipboard = copyToClipboard;
 
 window.addEventListener('DOMContentLoaded', async () => {
   try {

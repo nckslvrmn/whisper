@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	echo "github.com/labstack/echo/v4"
 	"github.com/nckslvrmn/whisper/internal/storage"
@@ -39,6 +40,19 @@ func Decrypt(c echo.Context) error {
 	var secretData map[string]any
 	if err := json.Unmarshal(secretDataJson, &secretData); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "invalid secret data")
+	}
+
+	// Enforce TTL at read time — storage-layer cleanup is async and may lag.
+	if ttlRaw, exists := secretData["ttl"]; exists {
+		if ttl, ok := ttlRaw.(float64); ok && ttl > 0 && time.Now().Unix() > int64(ttl) {
+			secretStore.DeleteSecret(requestData.SecretId)
+			if isExpiredFile, ok := secretData["isFile"].(bool); ok && isExpiredFile {
+				if fs := storage.GetFileStore(); fs != nil {
+					fs.DeleteFile(requestData.SecretId)
+				}
+			}
+			return echo.NewHTTPError(http.StatusNotFound, "Secret not found or already viewed")
+		}
 	}
 
 	if requestData.GetSalt {

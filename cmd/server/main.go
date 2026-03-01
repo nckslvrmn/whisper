@@ -70,6 +70,25 @@ func main() {
 
 	e.Renderer = t
 
+	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
+		XSSProtection:      "1; mode=block",
+		ContentTypeNosniff: "nosniff",
+		XFrameOptions:      "DENY",
+		HSTSMaxAge:         31536000,
+		// 'unsafe-inline' required for the inline toast script in layout.html
+		// and onclick attributes in dynamically generated HTML.
+		ContentSecurityPolicy: "default-src 'self'; " +
+			"script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; " +
+			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " +
+			"font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; " +
+			"img-src 'self' data:; " +
+			"connect-src 'self'; " +
+			"frame-ancestors 'none'; " +
+			"base-uri 'self'; " +
+			"object-src 'none';",
+		ReferrerPolicy: "strict-origin-when-cross-origin",
+	}))
+
 	e.Use(compressedCache.Middleware)
 	e.Static("/static", "web/static")
 
@@ -88,8 +107,8 @@ func main() {
 			return len(c.Path()) >= 7 && c.Path()[:7] == "/static"
 		},
 	}))
-	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
+	e.Use(middleware.RequestLogger())
 
 	e.Use(middleware.ContextTimeoutWithConfig(middleware.ContextTimeoutConfig{
 		Timeout: 30 * time.Second,
