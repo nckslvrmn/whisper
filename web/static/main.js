@@ -457,19 +457,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     console.error('Failed to load WASM module:', error);
   }
 
-  // Bind form submit handlers — no inline onsubmit attrs needed.
   document.getElementById('textFormElement')?.addEventListener('submit', postSecret);
   document.getElementById('fileFormElement')?.addEventListener('submit', postSecretFile);
   document.getElementById('secretForm')?.addEventListener('submit', getSecret);
 
-  // Activate file tab if requested via URL param
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('type') === 'file') {
     const fileTab = new bootstrap.Tab(document.getElementById('file-tab'));
     fileTab.show();
   }
 
-  // Update helper text when a file is selected
   const fileInput = document.getElementById('file');
   if (fileInput) {
     const helperText = fileInput.parentElement.querySelector('.form-text');
@@ -486,7 +483,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Ctrl+K / ⌘K focuses the secret textarea
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();

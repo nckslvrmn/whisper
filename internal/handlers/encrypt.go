@@ -23,7 +23,6 @@ type E2EData struct {
 	IsFile            bool   `json:"isFile"`
 }
 
-// Validate checks if the E2EData is valid for the given operation
 func (e *E2EData) Validate(isFile bool) error {
 	if e.PasswordHash == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "missing password hash")

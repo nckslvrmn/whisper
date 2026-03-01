@@ -106,7 +106,7 @@ func (g *GCSStore) DeleteEncryptedFile(secret_id string) error {
 	obj := g.bucket.Object(secret_id + ".enc")
 	if err := obj.Delete(ctx); err != nil {
 		if err == storage.ErrObjectNotExist {
-			return nil // If the object doesn't exist, that's fine
+			return nil
 		}
 		return fmt.Errorf("failed to delete encrypted file from GCS: %w", err)
 	}

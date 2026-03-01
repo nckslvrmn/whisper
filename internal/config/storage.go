@@ -24,7 +24,6 @@ func LoadStorageConfig() error {
 	GCSBucket = os.Getenv("GCS_BUCKET")
 	UsesGCP = GCPProjectID != "" && FirestoreDatabase != "" && GCSBucket != ""
 
-	// optional ENV vars
 	AWSRegion = "us-east-1"
 	if regionValue, regionExists := os.LookupEnv("AWS_REGION"); regionExists {
 		AWSRegion = regionValue
