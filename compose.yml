@@ -28,3 +28,9 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.whisper.rule=Host(`whisper.slvr.io`)"
       - "traefik.http.routers.whisper.entrypoints=websecure"
+    networks:
+      - nsilverman_default
+
+networks:
+  nsilverman_default:
+    external: true
