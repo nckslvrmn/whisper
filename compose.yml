@@ -1,0 +1,13 @@
+whisper:
+  image: ghcr.io/nckslvrmn/whisper:v3.0.0
+  container_name: whisper
+  environment:
+    - S3_BUCKET=${S3_BUCKET}
+    - DYNAMO_TABLE=${DYNAMO_TABLE}
+  restart: always
+  volumes:
+    - /home/nsilverman/.aws:/root/.aws/:ro
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.whisper.rule=Host(`whisper.slvr.io`)"
+    - "traefik.http.routers.whisper.entrypoints=websecure"

@@ -30,3 +30,13 @@ jobs:
           docker build . --tag ghcr.io/${{ github.repository_owner }}/whisper:latest
           docker push ghcr.io/${{ github.repository_owner }}/whisper:${VERSION}
           docker push ghcr.io/${{ github.repository_owner }}/whisper:latest
+
+  deploy:
+    needs: push-whisper-image
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nckslvrmn/docker-compose-deploy@main
+        env:
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          DYNAMO_TABLE: ${{ secrets.DYNAMO_TABLE }}
