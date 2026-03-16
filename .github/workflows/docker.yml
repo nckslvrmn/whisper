@@ -37,7 +37,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: nckslvrmn/docker-compose-deploy@main
-        file: compose.yml
+        with:
+          file: compose.yml
         env:
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
           DYNAMO_TABLE: ${{ secrets.DYNAMO_TABLE }}
