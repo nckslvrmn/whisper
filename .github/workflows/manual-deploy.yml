@@ -1,8 +1,10 @@
-name: Deploy To Home 
+name: Deploy To Home
+
+on:
+  workflow_dispatch:
 
 jobs:
   deploy:
-    needs: push-whisper-image
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v4
