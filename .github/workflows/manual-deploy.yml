@@ -2,6 +2,11 @@ name: Deploy To Home
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Image version tag (e.g. v3.1.0)'
+        required: false
+        default: 'latest'
 
 jobs:
   deploy:
@@ -14,3 +19,4 @@ jobs:
         env:
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
           DYNAMO_TABLE: ${{ secrets.DYNAMO_TABLE }}
+          WHISPER_VERSION: ${{ inputs.version }}

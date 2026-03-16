@@ -22,45 +22,12 @@
 
 ## Quick Start
 
-### Docker
-
-```bash
-# AWS backend
-docker run -d \
-  --name whisper \
-  -p 8080:8080 \
-  -e DYNAMO_TABLE=secrets \
-  -e S3_BUCKET=encrypted-files \
-  -e AWS_REGION=us-east-1 \
-  whisper:latest
-
-# Google Cloud backend
-docker run -d \
-  --name whisper \
-  -p 8080:8080 \
-  -e GCP_PROJECT_ID=your-project \
-  -e FIRESTORE_DATABASE=secrets-db \
-  -e GCS_BUCKET=encrypted-files \
-  whisper:latest
-
-# Local storage (SQLite + filesystem)
-docker run -d \
-  --name whisper \
-  -p 8080:8080 \
-  -v /path/to/local/storage:/data \
-  whisper:latest
-```
-
 ### Docker Compose
 
-Ready-to-use configurations are in `docs/`:
-
-- **AWS**: [`docs/docker-compose.aws.yml`](docs/docker-compose.aws.yml)
-- **Google Cloud**: [`docs/docker-compose.gcp.yml`](docs/docker-compose.gcp.yml)
-- **Local**: [`docs/docker-compose.local.yml`](docs/docker-compose.local.yml)
+`compose.yml` in the repo root is the canonical deployment configuration. It defaults to the AWS backend; comments inside show how to switch to Google Cloud or local storage.
 
 ```bash
-docker-compose -f docs/docker-compose.local.yml up -d
+docker compose up -d
 ```
 
 ### Build from Source

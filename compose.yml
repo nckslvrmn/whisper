@@ -1,13 +1,29 @@
 services:
   whisper:
-    image: ghcr.io/nckslvrmn/whisper:v3.0.0
+    image: ghcr.io/nckslvrmn/whisper:${WHISPER_VERSION:-latest}
     container_name: whisper
     environment:
+      # --- AWS backend ---
       - S3_BUCKET=${S3_BUCKET}
       - DYNAMO_TABLE=${DYNAMO_TABLE}
+      # AWS_REGION defaults to us-east-1; credentials via IAM role or ~/.aws mount below
+      # - AWS_REGION=us-east-1
+
+      # --- Google Cloud backend (remove AWS vars above, uncomment below) ---
+      # - GCP_PROJECT_ID=your-project-id
+      # - FIRESTORE_DATABASE=secrets-db
+      # - GCS_BUCKET=encrypted-files
+      # - GOOGLE_APPLICATION_CREDENTIALS=/config/service-account.json
+
+      # --- Local storage (remove all backend vars; mount a volume at /data) ---
+      # No env vars needed — SQLite + filesystem, persisted via the /data volume below
     restart: always
     volumes:
       - /home/nsilverman/.aws:/root/.aws/:ro
+      # GCP: mount service account key
+      # - ./gcp-credentials:/config:ro
+      # Local: mount persistent data directory
+      # - /path/to/data:/data
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.whisper.rule=Host(`whisper.slvr.io`)"

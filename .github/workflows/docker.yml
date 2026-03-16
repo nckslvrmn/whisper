@@ -42,3 +42,4 @@ jobs:
         env:
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
           DYNAMO_TABLE: ${{ secrets.DYNAMO_TABLE }}
+          WHISPER_VERSION: ${{ github.ref_name }}
