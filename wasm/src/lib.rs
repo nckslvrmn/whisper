@@ -165,10 +165,8 @@ pub fn encrypt_text(
     // None for both = "disable TTL" (no expiry). Otherwise resolve to a Unix timestamp.
     let ttl: Option<f64> = if let Some(ref ts) = ttl_timestamp {
         Some(ts.parse().unwrap_or_else(|_| sanitize_ttl_days("7")))
-    } else if let Some(ref days) = ttl_days {
-        Some(sanitize_ttl_days(days))
     } else {
-        None
+        ttl_days.as_ref().map(|days| sanitize_ttl_days(days))
     };
 
     let encrypted = match xchacha_encrypt(&passphrase, &nonce, &salt, &header, text.as_bytes()) {
@@ -229,10 +227,8 @@ pub fn encrypt_file(
 
     let ttl: Option<f64> = if let Some(ref ts) = ttl_timestamp {
         Some(ts.parse().unwrap_or_else(|_| sanitize_ttl_days("7")))
-    } else if let Some(ref days) = ttl_days {
-        Some(sanitize_ttl_days(days))
     } else {
-        None
+        ttl_days.as_ref().map(|days| sanitize_ttl_days(days))
     };
 
     let encrypted_file = match xchacha_encrypt(&passphrase, &file_nonce, &salt, &header, &file_data)
