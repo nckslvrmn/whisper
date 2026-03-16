@@ -22,6 +22,5 @@ console_error_panic_hook = "0.1"
 
 [profile.release]
 opt-level = "s"
-lto = true
-codegen-units = 1
+lto = "thin"
 panic = "abort"
