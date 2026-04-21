@@ -34,6 +34,8 @@ jobs:
   deploy:
     needs: push-whisper-image
     runs-on: [self-hosted]
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: nckslvrmn/docker-compose-deploy@main
