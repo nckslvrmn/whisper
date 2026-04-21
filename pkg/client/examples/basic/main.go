@@ -33,10 +33,11 @@ func main() {
 		log.Fatalf("store: %v", err)
 	}
 
+	// In a real flow the passphrase is shared out-of-band with the recipient;
+	// we skip printing it here and reuse the value in-process below.
 	fmt.Println("Stored secret:")
 	fmt.Println("  URL:       ", stored.URL)
 	fmt.Println("  Secret ID: ", stored.SecretID)
-	fmt.Println("  Passphrase:", stored.DisplayPassphrase)
 
 	// 2. Retrieve it back (this will consume the single view).
 	got, err := c.Retrieve(ctx, stored.SecretID, stored.DisplayPassphrase)
