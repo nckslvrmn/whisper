@@ -32,6 +32,9 @@
 // separate nonce (prepended to the metadata ciphertext) to avoid nonce reuse
 // under the same key.
 //
+// A runnable end-to-end example lives at pkg/client/examples/basic; run it
+// with `go run ./pkg/client/examples/basic -url https://whisper.example.com`.
+//
 // # Low-level API
 //
 // EncryptText, EncryptFile, DecryptText, DecryptFile, and HashPassword
