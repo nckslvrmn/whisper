@@ -183,11 +183,60 @@ func (fs *fakeServer) handleDecrypt(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
+func TestNewBaseURLValidation(t *testing.T) {
+	t.Run("accepts http and https with optional sub-path", func(t *testing.T) {
+		cases := []string{
+			"http://localhost:8080",
+			"https://whisper.example.com",
+			"https://whisper.example.com/",
+			"https://proxy.example.com/whisper",
+		}
+		for _, in := range cases {
+			c, err := New(in)
+			if err != nil {
+				t.Fatalf("New(%q): unexpected error: %v", in, err)
+			}
+			if !strings.HasSuffix(c.BaseURL.Path, "/") {
+				t.Fatalf("New(%q): BaseURL.Path %q should end with /", in, c.BaseURL.Path)
+			}
+		}
+	})
+	t.Run("rejects bad inputs", func(t *testing.T) {
+		cases := []string{
+			"",
+			"not a url",
+			"ftp://example.com",
+			"https:///missing-host",
+			"https://example.com?x=1",
+			"https://example.com#frag",
+		}
+		for _, in := range cases {
+			if _, err := New(in); err == nil {
+				t.Fatalf("New(%q): expected error, got nil", in)
+			}
+		}
+	})
+	t.Run("preserves sub-path in resolved URLs", func(t *testing.T) {
+		c, err := New("https://proxy.example.com/whisper")
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := c.resolve("encrypt")
+		want := "https://proxy.example.com/whisper/encrypt"
+		if got != want {
+			t.Fatalf("resolve under sub-path: got %q, want %q", got, want)
+		}
+	})
+}
+
 func TestClient_StoreRetrieveText(t *testing.T) {
 	srv := newFakeServer()
 	defer srv.Close()
 
-	c := New(srv.URL)
+	c, err := New(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
 	stored, err := c.StoreText(context.Background(), "the eagle has landed", &StoreOptions{
 		ViewCount: Views(3),
 		Expiry:    ExpireIn(10 * time.Minute),
@@ -219,7 +268,10 @@ func TestClient_StoreRetrieveFile(t *testing.T) {
 	defer srv.Close()
 
 	data := []byte("binary\x00content\xff here")
-	c := New(srv.URL)
+	c, err := New(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
 	stored, err := c.StoreFile(context.Background(), "notes.bin", "application/octet-stream", data, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -244,7 +296,10 @@ func TestClient_RetrieveWrongPassphrase(t *testing.T) {
 	srv := newFakeServer()
 	defer srv.Close()
 
-	c := New(srv.URL)
+	c, err := New(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
 	stored, err := c.StoreText(context.Background(), "x", nil)
 	if err != nil {
 		t.Fatal(err)

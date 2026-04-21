@@ -5,7 +5,8 @@
 //
 // # Quick start
 //
-//	c := client.New("https://whisper.example.com")
+//	c, err := client.New("https://whisper.example.com")
+//	// handle err...
 //	stored, err := c.StoreText(ctx, "my secret", &client.StoreOptions{
 //	    ViewCount: client.Views(1),
 //	    Expiry:    client.ExpireIn(24 * time.Hour),

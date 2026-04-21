@@ -8,28 +8,56 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
 
-// Client talks to a whisper server over HTTPS. The zero value is not usable;
+// Client talks to a whisper server over HTTP(S). The zero value is not usable;
 // construct one with New.
 type Client struct {
-	// BaseURL is the origin of the whisper server, e.g. "https://whisper.example.com".
-	// No trailing slash required.
-	BaseURL string
+	// BaseURL is the parsed origin (and optional path prefix) of the whisper
+	// server. Its Path is always normalized to end with "/" so relative API
+	// paths resolve correctly under a sub-path deployment.
+	BaseURL *url.URL
 
 	// HTTPClient is the underlying HTTP client. Defaults to a client with a
 	// 30-second timeout; override to customise transport, timeouts, or auth.
 	HTTPClient *http.Client
 }
 
-// New returns a Client configured to talk to baseURL.
-func New(baseURL string) *Client {
-	return &Client{
-		BaseURL:    strings.TrimRight(baseURL, "/"),
-		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+// New parses baseURL and returns a Client configured to talk to it. baseURL
+// must have an http or https scheme, a host, and no query or fragment. A path
+// prefix (e.g. "https://proxy.example.com/whisper") is preserved so the SDK
+// works behind a reverse proxy.
+func New(baseURL string) (*Client, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse base URL: %w", err)
 	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("base URL scheme must be http or https, got %q", u.Scheme)
+	}
+	if u.Host == "" {
+		return nil, errors.New("base URL is missing host")
+	}
+	if u.RawQuery != "" || u.Fragment != "" {
+		return nil, errors.New("base URL must not contain query or fragment")
+	}
+	if !strings.HasSuffix(u.Path, "/") {
+		u.Path += "/"
+	}
+	return &Client{
+		BaseURL:    u,
+		HTTPClient: &http.Client{Timeout: 30 * time.Second},
+	}, nil
+}
+
+// resolve builds an absolute URL string for a path relative to BaseURL. The
+// path must not start with "/" — a rooted ref would drop any configured sub-
+// path prefix.
+func (c *Client) resolve(path string) string {
+	return c.BaseURL.ResolveReference(&url.URL{Path: path}).String()
 }
 
 // StoreOptions configures TTL and view-count limits for a stored secret. Nil
@@ -68,14 +96,14 @@ func (c *Client) StoreText(ctx context.Context, text string, opts *StoreOptions)
 	if err != nil {
 		return nil, err
 	}
-	id, err := c.postEncrypt(ctx, "/encrypt", payload)
+	id, err := c.postEncrypt(ctx, "encrypt", payload)
 	if err != nil {
 		return nil, err
 	}
 	return &StoredSecret{
 		SecretID:          id,
 		DisplayPassphrase: passphrase,
-		URL:               c.BaseURL + "/secret/" + id,
+		URL:               c.resolve("secret/" + id),
 	}, nil
 }
 
@@ -87,14 +115,14 @@ func (c *Client) StoreFile(ctx context.Context, name, contentType string, data [
 	if err != nil {
 		return nil, err
 	}
-	id, err := c.postEncrypt(ctx, "/encrypt_file", payload)
+	id, err := c.postEncrypt(ctx, "encrypt_file", payload)
 	if err != nil {
 		return nil, err
 	}
 	return &StoredSecret{
 		SecretID:          id,
 		DisplayPassphrase: passphrase,
-		URL:               c.BaseURL + "/secret/" + id,
+		URL:               c.resolve("secret/" + id),
 	}, nil
 }
 
@@ -127,7 +155,7 @@ func (c *Client) Retrieve(ctx context.Context, secretID, displayPassphrase strin
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/decrypt", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.resolve("decrypt"), bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +195,7 @@ func (c *Client) postEncrypt(ctx context.Context, path string, payload any) (str
 	if err != nil {
 		return "", err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+path, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.resolve(path), bytes.NewReader(body))
 	if err != nil {
 		return "", err
 	}

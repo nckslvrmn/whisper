@@ -20,7 +20,10 @@ func main() {
 	url := flag.String("url", "http://localhost:8080", "whisper server base URL")
 	flag.Parse()
 
-	c := client.New(*url)
+	c, err := client.New(*url)
+	if err != nil {
+		log.Fatalf("invalid URL: %v", err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
