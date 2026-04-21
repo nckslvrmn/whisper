@@ -95,6 +95,8 @@ async function postJSON(url, data) {
 }
 
 async function handleEncryption(encryptFn, endpoint, extraData = {}) {
+  const includePassphrase = !!extraData.includePassphrase;
+  delete extraData.includePassphrase;
   const submitBtn = extraData.isFile ? document.getElementById('submitBtnFile') : document.getElementById('submitBtn');
   const submitBtnText = extraData.isFile ? document.getElementById('submitBtnFileText') : document.getElementById('submitBtnText');
   let infoToast = null;
@@ -131,14 +133,22 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
 
     if (infoToast) toast.dismiss(infoToast);
 
-    const secret_link = `${window.location.origin}/secret/${responseData.secretId}`;
+    let secret_link = `${window.location.origin}/secret/${responseData.secretId}`;
+    if (includePassphrase) {
+      // Passphrase goes in the URL fragment, which browsers do not send to the
+      // server, keep out of access logs, and strip from the Referer header.
+      secret_link += `#p=${encodeURIComponent(result.passphrase)}`;
+    }
     const contentId = 'secretContent_' + Date.now();
+
+    const passphraseBlock = includePassphrase
+      ? ''
+      : `<div class="mt-2">Passphrase: <code>${result.passphrase}</code></div>`;
 
     setResp('success',
       `<span class="checkmark">✓</span> <strong>Secret successfully stored</strong>
-      <div class="mt-3" id="${contentId}"><a href="${secret_link}" target="_blank">${secret_link}</a>
-      <div class="mt-2">Passphrase: <code>${result.passphrase}</code></div></div>
-      <button class="copy-btn-float" data-copy-target="${contentId}" aria-label="Copy link and passphrase">
+      <div class="mt-3" id="${contentId}"><a href="${secret_link}" target="_blank">${secret_link}</a>${passphraseBlock}</div>
+      <button class="copy-btn-float" data-copy-target="${contentId}" aria-label="Copy link${includePassphrase ? '' : ' and passphrase'}">
         <i class="fas fa-copy"></i> Copy
       </button>`,
       false);
@@ -186,10 +196,12 @@ async function postSecretFile(event) {
   const arrayBuffer = await file.arrayBuffer();
   const base64 = arrayBufferToBase64(arrayBuffer);
 
+  const includePassphrase = document.getElementById('includePassphraseFile')?.checked === true;
+
   await handleEncryption(
     () => encryptFile(base64, file.name, file.type, viewCount, ttlDays, ttlTimestamp),
     '/encrypt_file',
-    { isFile: true }
+    { isFile: true, includePassphrase }
   );
 }
 
@@ -218,10 +230,12 @@ async function postSecret(event) {
     formData.get('ttl_days') || '7'
   );
 
+  const includePassphrase = document.getElementById('includePassphrase')?.checked === true;
+
   await handleEncryption(
     () => encryptText(secret, viewCount, ttlDays, ttlTimestamp),
     '/encrypt',
-    { isFile: false }
+    { isFile: false, includePassphrase }
   );
 }
 
@@ -459,7 +473,22 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('textFormElement')?.addEventListener('submit', postSecret);
   document.getElementById('fileFormElement')?.addEventListener('submit', postSecretFile);
-  document.getElementById('secretForm')?.addEventListener('submit', getSecret);
+  const secretForm = document.getElementById('secretForm');
+  secretForm?.addEventListener('submit', getSecret);
+
+  if (secretForm && window.location.hash.startsWith('#p=')) {
+    const embedded = decodeURIComponent(window.location.hash.slice(3));
+    // Scrub the passphrase from the address bar before submit so it is not
+    // visible on screen or preserved in browser history beyond this nav entry.
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    if (embedded) {
+      const input = secretForm.querySelector('input[name="passphrase"]');
+      if (input) {
+        input.value = embedded;
+        secretForm.requestSubmit();
+      }
+    }
+  }
 
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get('type') === 'file') {

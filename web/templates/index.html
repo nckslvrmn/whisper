@@ -72,6 +72,12 @@
                 Disable view count (only rely on expiration)
               </label>
             </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="includePassphrase" name="include_passphrase">
+              <label class="form-check-label" for="includePassphrase">
+                Embed passphrase in link (auto-decrypts on open — anyone with the link can read the secret)
+              </label>
+            </div>
             <div class="form-group">
               <label for="exactTTL" class="form-label">Or set exact expiration date/time:</label>
               <input type="datetime-local" class="form-control" id="exactTTL" name="exact_ttl">
@@ -142,6 +148,12 @@
               <input class="form-check-input" type="checkbox" id="disableViewCountFile" name="disable_view_count">
               <label class="form-check-label" for="disableViewCountFile">
                 Disable view count (only rely on expiration)
+              </label>
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="includePassphraseFile" name="include_passphrase">
+              <label class="form-check-label" for="includePassphraseFile">
+                Embed passphrase in link (auto-decrypts on open — anyone with the link can read the file)
               </label>
             </div>
             <div class="form-group">

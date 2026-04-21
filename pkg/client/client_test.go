@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -260,6 +261,38 @@ func TestClient_StoreRetrieveText(t *testing.T) {
 	}
 	if got.Text != "the eagle has landed" {
 		t.Fatalf("text mismatch: %q", got.Text)
+	}
+}
+
+func TestClient_StoreText_IncludePassphraseURL(t *testing.T) {
+	srv := newFakeServer()
+	defer srv.Close()
+
+	c, err := New(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := c.StoreText(context.Background(), "embedded", &StoreOptions{
+		ViewCount:         Views(1),
+		Expiry:            ExpireIn(time.Minute),
+		IncludePassphrase: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantPrefix := srv.URL + "/secret/" + stored.SecretID + "#p="
+	if !strings.HasPrefix(stored.URL, wantPrefix) {
+		t.Fatalf("URL missing passphrase fragment: got %q, want prefix %q", stored.URL, wantPrefix)
+	}
+	frag := strings.TrimPrefix(stored.URL, wantPrefix)
+	// The escaped fragment must round-trip to the DisplayPassphrase.
+	decoded, err := url.QueryUnescape(frag)
+	if err != nil {
+		t.Fatalf("fragment not a valid escaped value: %v", err)
+	}
+	if decoded != stored.DisplayPassphrase {
+		t.Fatalf("fragment mismatch: got %q, want %q", decoded, stored.DisplayPassphrase)
 	}
 }
 

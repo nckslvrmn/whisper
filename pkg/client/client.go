@@ -72,6 +72,15 @@ type StoreOptions struct {
 	// Expiry is the absolute time when the secret should be deleted. The
 	// server caps this at 30 days from now.
 	Expiry *time.Time
+
+	// IncludePassphrase, when true, causes StoreText/StoreFile to return a URL
+	// with the display passphrase appended as a fragment (#p=<passphrase>).
+	// Opening that URL auto-decrypts the secret, so anyone in possession of
+	// the link alone can read it. This is a deliberate reduction in security
+	// compared to the default "link + passphrase are separate" flow. The
+	// fragment is not sent to the server, not logged, and not included in the
+	// Referer header.
+	IncludePassphrase bool
 }
 
 // StoredSecret is what the server returns after accepting a new secret.
@@ -103,7 +112,7 @@ func (c *Client) StoreText(ctx context.Context, text string, opts *StoreOptions)
 	return &StoredSecret{
 		SecretID:          id,
 		DisplayPassphrase: passphrase,
-		URL:               c.resolve("secret/" + id),
+		URL:               c.buildShareURL(id, passphrase, opts),
 	}, nil
 }
 
@@ -122,8 +131,16 @@ func (c *Client) StoreFile(ctx context.Context, name, contentType string, data [
 	return &StoredSecret{
 		SecretID:          id,
 		DisplayPassphrase: passphrase,
-		URL:               c.resolve("secret/" + id),
+		URL:               c.buildShareURL(id, passphrase, opts),
 	}, nil
+}
+
+func (c *Client) buildShareURL(id, passphrase string, opts *StoreOptions) string {
+	base := c.resolve("secret/" + id)
+	if opts != nil && opts.IncludePassphrase {
+		return base + "#p=" + url.QueryEscape(passphrase)
+	}
+	return base
 }
 
 // Retrieved is the decrypted result of a Retrieve call. Exactly one of Text or
