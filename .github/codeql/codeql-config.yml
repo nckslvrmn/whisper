@@ -1,0 +1,4 @@
+name: "Whisper CodeQL config"
+
+paths-ignore:
+  - "wasm/src/tests.rs"
