@@ -261,9 +261,8 @@ The server validates `passwordHash` with a constant-time comparison. Each succes
 If you want to create and retrieve secrets programmatically — for scripting, CLI tools, or server-to-server use — use the Whisper SDK to handle the cryptographic details:
 
 - **Go SDK**: [whisper-go](https://github.com/nckslvrmn/whisper-go) — Type-safe client with full support for text and file secrets, key derivation, and encryption/decryption.
-- **JavaScript/TypeScript SDK**: [whisper-js](https://github.com/nckslvrmn/whisper-js) — ESM module with zero external dependencies; works in Node.js and browsers.
 
-Both SDKs encapsulate the salt-in-passphrase architecture, key derivation, and authenticated encryption so you don't have to.
+The SDK encapsulates the salt-in-passphrase architecture, key derivation, and authenticated encryption so you don't have to.
 
 ## Security Architecture
 
