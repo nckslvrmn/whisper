@@ -256,126 +256,14 @@ Retrieve and consume an encrypted secret.
 
 The server validates `passwordHash` with a constant-time comparison. Each successful `/decrypt` call decrements the view counter; when it reaches zero, the secret is deleted. If `ttl` has expired the secret is also deleted and `404` is returned.
 
-## Using the API Directly (No Frontend)
+## Using the API with an SDK
 
-If you want to create secret bundles without the browser UI — for scripting, CLI tools, or server-to-server use — you need to replicate the client-side crypto. The following pseudocode shows the full flow.
+If you want to create and retrieve secrets programmatically — for scripting, CLI tools, or server-to-server use — use the Whisper SDK to handle the cryptographic details:
 
-### Storing a Text Secret
+- **Go SDK**: [whisper-go](https://github.com/nckslvrmn/whisper-go) — Type-safe client with full support for text and file secrets, key derivation, and encryption/decryption.
+- **JavaScript/TypeScript SDK**: [whisper-js](https://github.com/nckslvrmn/whisper-js) — ESM module with zero external dependencies; works in Node.js and browsers.
 
-```
-# 1. Generate random material
-salt        = random_bytes(16)
-passphrase  = random_printable_chars(32)   # from charset a-z A-Z 0-9 !#$%&*+-=?@_~
-nonce       = random_bytes(24)
-header      = random_bytes(16)
-
-# 2. Derive keys
-root_key    = Argon2id(password=passphrase, salt=salt,
-                       m=65536, t=2, p=1, keylen=32)
-enc_key     = HKDF-SHA256(ikm=root_key, salt=salt,
-                           info="whisper-encryption-v1", length=32)
-auth_key    = HKDF-SHA256(ikm=root_key, salt=salt,
-                           info="whisper-auth-v1",       length=32)
-
-# 3. Encrypt
-ciphertext  = XChaCha20-Poly1305.Encrypt(key=enc_key, nonce=nonce,
-                                          plaintext=secret_text,
-                                          aad=header)
-
-# 4. Encode for transport
-passwordHash    = hex_encode(auth_key)           # 64 lowercase hex chars
-encryptedData   = url_safe_base64(ciphertext)
-nonceB64        = url_safe_base64(nonce)
-headerB64       = url_safe_base64(header)
-
-# 5. POST to server
-response = POST /encrypt {
-  "passwordHash":  passwordHash,
-  "encryptedData": encryptedData,
-  "nonce":         nonceB64,
-  "header":        headerB64,
-  "viewCount":     1,
-  "ttl":           unix_timestamp(now + 7 days)
-}
-secretId = response["secretId"]
-
-# 6. Build the display passphrase to share with the recipient
-#    The first 24 chars are URL-safe base64 of the salt (ceil(16/3)*4 = 24).
-#    The next 32 chars are the raw passphrase.
-display_passphrase = url_safe_base64(salt) + passphrase   # 56 chars total
-
-# Share secretId + display_passphrase with the recipient through a secure channel.
-# The salt never touches the server at any point.
-```
-
-### Retrieving a Text Secret
-
-```
-# The recipient has: secretId, display_passphrase (56 chars)
-
-# 1. Split the display passphrase
-salt_b64    = display_passphrase[0:24]      # first 24 chars
-passphrase  = display_passphrase[24:]       # remaining 32 chars
-salt        = url_safe_base64_decode(salt_b64)
-
-# 2. Derive auth key to authenticate with the server
-root_key    = Argon2id(password=passphrase, salt=salt,
-                       m=65536, t=2, p=1, keylen=32)
-auth_key    = HKDF-SHA256(ikm=root_key, salt=salt,
-                           info="whisper-auth-v1", length=32)
-passwordHash = hex_encode(auth_key)
-
-# 3. Fetch from server
-response = POST /decrypt {
-  "secret_id":    secretId,
-  "passwordHash": passwordHash
-}
-
-# 4. Derive encryption key and decrypt locally
-enc_key     = HKDF-SHA256(ikm=root_key, salt=salt,
-                           info="whisper-encryption-v1", length=32)
-nonce       = url_safe_base64_decode(response["nonce"])
-header      = url_safe_base64_decode(response["header"])
-ciphertext  = url_safe_base64_decode(response["encryptedData"])
-
-plaintext   = XChaCha20-Poly1305.Decrypt(key=enc_key, nonce=nonce,
-                                          ciphertext=ciphertext,
-                                          aad=header)
-```
-
-### Storing a File Secret
-
-```
-# Same key derivation as text. Additionally:
-
-file_bytes       = read_file("secret.pdf")
-meta_nonce       = random_bytes(24)           # separate nonce for metadata!
-file_nonce       = random_bytes(24)
-
-encrypted_file   = XChaCha20-Poly1305.Encrypt(key=enc_key, nonce=file_nonce,
-                                               plaintext=file_bytes, aad=header)
-
-metadata_json    = json({"file_name": "secret.pdf", "file_type": "application/pdf"})
-encrypted_meta   = XChaCha20-Poly1305.Encrypt(key=enc_key, nonce=meta_nonce,
-                                               plaintext=metadata_json, aad=header)
-
-# Prepend meta_nonce to the metadata ciphertext blob
-encrypted_metadata_blob = meta_nonce + encrypted_meta
-
-response = POST /encrypt_file {
-  "passwordHash":      hex_encode(auth_key),
-  "nonce":             url_safe_base64(file_nonce),
-  "header":            url_safe_base64(header),
-  "encryptedFile":     standard_base64(encrypted_file),
-  "encryptedMetadata": standard_base64(encrypted_metadata_blob),
-  "viewCount":         1,
-  "ttl":               unix_timestamp(now + 7 days)
-}
-```
-
-**Important**: File data uses `standard_base64` (with `+`, `/`, and `=` padding).
-Nonces and headers use `url_safe_base64` (with `-`, `_`). Match the encoding exactly
-or the server will reject the request or clients will fail to decode.
+Both SDKs encapsulate the salt-in-passphrase architecture, key derivation, and authenticated encryption so you don't have to.
 
 ## Security Architecture
 
@@ -415,29 +303,6 @@ WASM bytecode compilation only — it does not enable `eval()` for JavaScript.
 - Argon2 runs synchronously on the browser's main thread (~1–2 s UI pause during key derivation)
 - View-count decrement has a TOCTOU race; no atomic CAS is implemented in the storage layer
 - `wasm-pack` was archived in July 2025; 0.14.0 is the last release
-
-## Production Deployment
-
-### Nginx
-
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name secrets.yourdomain.com;
-
-    ssl_certificate     /path/to/cert.pem;
-    ssl_certificate_key /path/to/key.pem;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_set_header Host              $host;
-        proxy_set_header X-Real-IP         $remote_addr;
-        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
 
 ## Contributing
 
