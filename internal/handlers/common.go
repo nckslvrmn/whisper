@@ -2,12 +2,17 @@ package handlers
 
 import (
 	"regexp"
+
+	"github.com/nckslvrmn/whisper/internal/config"
 )
 
-const (
-	MaxFileSize = 10 * 1024 * 1024
-	MaxTextSize = 1 * 1024 * 1024
-)
+func MaxFileSize() int {
+	return config.MaxFileSizeMB * 1024 * 1024
+}
+
+func MaxTextSize() int {
+	return config.MaxTextSizeMB * 1024 * 1024
+}
 
 var (
 	secretIDRegex     = regexp.MustCompile(`^[a-zA-Z0-9]{16}$`)

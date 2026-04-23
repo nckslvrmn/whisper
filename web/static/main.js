@@ -5,6 +5,11 @@ import init, { encryptText, encryptFile, decryptText, decryptFile, hashPassword 
 // This matches the layout produced by the Rust encryptText/encryptFile exports.
 const SALT_B64_LEN = 24;
 
+const MAX_FILE_SIZE_MB = parseInt(
+  document.querySelector('meta[name="max-file-size-mb"]')?.content || '256',
+  10,
+);
+
 function splitPassphrase(displayPassphrase) {
   if (displayPassphrase.length < SALT_B64_LEN + 1) {
     throw new Error('Invalid passphrase format');
@@ -179,8 +184,8 @@ async function postSecretFile(event) {
     return;
   }
 
-  if ((file.size / (1024 * 1024)) > 10) {
-    toast.error('File size exceeds 10MB limit');
+  if ((file.size / (1024 * 1024)) > MAX_FILE_SIZE_MB) {
+    toast.error(`File size exceeds ${MAX_FILE_SIZE_MB}MB limit`);
     return;
   }
 
@@ -448,7 +453,7 @@ function clearForm(isFile) {
       fileInput.value = '';
       const helperText = fileInput.parentElement.querySelector('.form-text');
       if (helperText) {
-        helperText.textContent = 'Maximum file size: 10MB';
+        helperText.textContent = `Maximum file size: ${MAX_FILE_SIZE_MB}MB`;
       }
     }
   } else {

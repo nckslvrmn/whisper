@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	echo "github.com/labstack/echo/v4"
+
+	"github.com/nckslvrmn/whisper/internal/config"
 )
 
 // --- validateSecretID ---
@@ -120,7 +122,7 @@ func TestE2EDataValidate_Text_MissingEncryptedData(t *testing.T) {
 func TestE2EDataValidate_Text_ExceedsLimit(t *testing.T) {
 	d := &E2EData{
 		PasswordHash:  validHash,
-		EncryptedData: string(make([]byte, MaxTextSize+1)),
+		EncryptedData: string(make([]byte, MaxTextSize()+1)),
 	}
 	err := d.Validate(false)
 	if err == nil {
@@ -135,7 +137,7 @@ func TestE2EDataValidate_Text_ExceedsLimit(t *testing.T) {
 func TestE2EDataValidate_Text_AtExactLimit(t *testing.T) {
 	d := &E2EData{
 		PasswordHash:  validHash,
-		EncryptedData: string(make([]byte, MaxTextSize)),
+		EncryptedData: string(make([]byte, MaxTextSize())),
 	}
 	if err := d.Validate(false); err != nil {
 		t.Errorf("unexpected error at exact text limit: %v", err)
@@ -143,9 +145,13 @@ func TestE2EDataValidate_Text_AtExactLimit(t *testing.T) {
 }
 
 func TestE2EDataValidate_File_ExceedsLimit(t *testing.T) {
+	orig := config.MaxFileSizeMB
+	config.MaxFileSizeMB = 1
+	defer func() { config.MaxFileSizeMB = orig }()
+
 	d := &E2EData{
 		PasswordHash:  validHash,
-		EncryptedFile: string(make([]byte, MaxFileSize+1)),
+		EncryptedFile: string(make([]byte, MaxFileSize()+1)),
 	}
 	err := d.Validate(true)
 	if err == nil {
@@ -158,9 +164,13 @@ func TestE2EDataValidate_File_ExceedsLimit(t *testing.T) {
 }
 
 func TestE2EDataValidate_File_AtExactLimit(t *testing.T) {
+	orig := config.MaxFileSizeMB
+	config.MaxFileSizeMB = 1
+	defer func() { config.MaxFileSizeMB = orig }()
+
 	d := &E2EData{
 		PasswordHash:  validHash,
-		EncryptedFile: string(make([]byte, MaxFileSize)),
+		EncryptedFile: string(make([]byte, MaxFileSize())),
 	}
 	if err := d.Validate(true); err != nil {
 		t.Errorf("unexpected error at exact file limit: %v", err)

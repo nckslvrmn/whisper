@@ -33,14 +33,14 @@ func (e *E2EData) Validate(isFile bool) error {
 	}
 
 	if isFile {
-		if e.EncryptedFile != "" && len(e.EncryptedFile) > MaxFileSize {
+		if e.EncryptedFile != "" && len(e.EncryptedFile) > MaxFileSize() {
 			return echo.NewHTTPError(http.StatusBadRequest, "file size exceeds limit")
 		}
 	} else {
 		if e.EncryptedData == "" {
 			return echo.NewHTTPError(http.StatusBadRequest, "missing encrypted data")
 		}
-		if len(e.EncryptedData) > MaxTextSize {
+		if len(e.EncryptedData) > MaxTextSize() {
 			return echo.NewHTTPError(http.StatusBadRequest, "text size exceeds limit")
 		}
 	}

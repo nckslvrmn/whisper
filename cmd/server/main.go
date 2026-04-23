@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"html/template"
 	"io"
 	"net/http"
@@ -32,12 +33,16 @@ func (t *TemplateRegistry) Render(w io.Writer, name string, data any, c echo.Con
 type TemplateData struct {
 	ProjectName      string
 	AdvancedFeatures bool
+	MaxFileSizeMB    int
+	MaxTextSizeMB    int
 }
 
 func getTemplateData() TemplateData {
 	return TemplateData{
 		ProjectName:      config.ProjectName,
 		AdvancedFeatures: config.AdvancedFeatures,
+		MaxFileSizeMB:    config.MaxFileSizeMB,
+		MaxTextSizeMB:    config.MaxTextSizeMB,
 	}
 }
 
@@ -114,7 +119,7 @@ func main() {
 		Timeout: 30 * time.Second,
 	}))
 
-	e.Use(middleware.BodyLimit("10M"))
+	e.Use(middleware.BodyLimit(fmt.Sprintf("%dM", config.MaxFileSizeMB)))
 
 	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(100)))
 

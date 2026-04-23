@@ -239,7 +239,7 @@ func TestEncryptString_TextSizeExceedsLimit(t *testing.T) {
 	setupMockStores()
 	config.AdvancedFeatures = true
 
-	body := encryptBody(t, map[string]any{"encryptedData": strings.Repeat("x", MaxTextSize+1)})
+	body := encryptBody(t, map[string]any{"encryptedData": strings.Repeat("x", MaxTextSize()+1)})
 	c, _ := newEchoContext(body)
 	err := EncryptString(c)
 	assertHTTPError(t, err, http.StatusBadRequest)
@@ -305,7 +305,11 @@ func TestEncryptFile_FileSizeExceedsLimit(t *testing.T) {
 	setupMockStores()
 	config.AdvancedFeatures = true
 
-	oversized := strings.Repeat("x", MaxFileSize+1)
+	orig := config.MaxFileSizeMB
+	config.MaxFileSizeMB = 1
+	defer func() { config.MaxFileSizeMB = orig }()
+
+	oversized := strings.Repeat("x", MaxFileSize()+1)
 	body := fmt.Sprintf(`{"passwordHash":%q,"encryptedFile":%q,"nonce":"x","header":"y"}`, validHash, oversized)
 	c, _ := newEchoContext(body)
 	err := EncryptFile(c)

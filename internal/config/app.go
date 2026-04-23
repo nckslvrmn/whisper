@@ -9,6 +9,8 @@ var (
 	ProjectName      string
 	AdvancedFeatures bool
 	Port             string
+	MaxFileSizeMB    = 256
+	MaxTextSizeMB    = 1
 )
 
 func LoadAppConfig() error {
@@ -27,6 +29,20 @@ func LoadAppConfig() error {
 	Port = os.Getenv("PORT")
 	if Port == "" {
 		Port = "8081"
+	}
+
+	MaxFileSizeMB = 256
+	if sizeStr := os.Getenv("MAX_FILE_SIZE_MB"); sizeStr != "" {
+		if parsed, err := strconv.Atoi(sizeStr); err == nil && parsed > 0 {
+			MaxFileSizeMB = parsed
+		}
+	}
+
+	MaxTextSizeMB = 1
+	if sizeStr := os.Getenv("MAX_TEXT_SIZE_MB"); sizeStr != "" {
+		if parsed, err := strconv.Atoi(sizeStr); err == nil && parsed > 0 {
+			MaxTextSizeMB = parsed
+		}
 	}
 
 	return nil

@@ -99,8 +99,8 @@
       <form id="fileFormElement" class="pt-3 px-3 form-signin">
         <div class="mb-3 form-group">
           <label for="file" class="form-label">Select File:</label>
-          <input class="form-control" id="file" type="file" aria-label="File to encrypt (max 10MB)" required>
-          <small class="form-text text-muted">Maximum file size: 10MB</small>
+          <input class="form-control" id="file" type="file" aria-label="File to encrypt (max {{.MaxFileSizeMB}}MB)" required>
+          <small class="form-text text-muted">Maximum file size: {{.MaxFileSizeMB}}MB</small>
         </div>
         <div class="form-group">
           <label for="ViewCountFile" class="form-label">View Count:</label>
