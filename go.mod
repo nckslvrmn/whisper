@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.57.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.100.0
 	github.com/labstack/echo/v4 v4.15.1
-	github.com/mattn/go-sqlite3 v1.14.42
+	github.com/mattn/go-sqlite3 v1.14.44
 	golang.org/x/crypto v0.50.0
 	google.golang.org/api v0.276.0
 	google.golang.org/grpc v1.80.0
