@@ -32,7 +32,7 @@ docker compose up -d
 
 ### Build from Source
 
-Prerequisites: Go >= 1.23, the Rust toolchain with the `wasm32-unknown-unknown` target, and `wasm-bindgen-cli` 0.2.113. `wasm-opt` (binaryen) and `brotli` are optional and used to shrink and precompress the WASM artifact if they're present.
+Prerequisites: Go >= 1.23, the Rust toolchain with the `wasm32-unknown-unknown` target, and `wasm-bindgen-cli` 0.2.125. `wasm-opt` (binaryen) and `brotli` are optional and used to shrink and precompress the WASM artifact if they're present.
 
 ```bash
 git clone https://github.com/nckslvrmn/whisper.git
@@ -48,7 +48,7 @@ make server
 docker build -t whisper .
 ```
 
-`make wasm` builds the crate with `cargo build --release --target wasm32-unknown-unknown`, runs `wasm-bindgen --target web` to generate `crypto.js` and `crypto_bg.wasm` into `web/static/`, then optionally optimizes with `wasm-opt` and precompresses with `gzip` and `brotli`. The Dockerfile pins `wasm-bindgen-cli` at 0.2.113 for reproducibility.
+`make wasm` builds the crate with `cargo build --release --target wasm32-unknown-unknown`, runs `wasm-bindgen --target web --force-enable-abort-handler` to generate `crypto.js` and `crypto_bg.wasm` into `web/static/`, then optionally optimizes with `wasm-opt` and precompresses with `gzip` and `brotli`. The Dockerfile pins `wasm-bindgen-cli` at 0.2.125 for reproducibility.
 
 ## Configuration
 

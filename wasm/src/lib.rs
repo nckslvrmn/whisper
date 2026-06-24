@@ -145,9 +145,10 @@ fn err_js(msg: &str) -> JsValue {
     obj.into()
 }
 
-#[wasm_bindgen(start)]
+#[wasm_bindgen(start, private)]
 pub fn main() {
     console_error_panic_hook::set_once();
+    wasm_bindgen::handler::set_on_abort(wasm_bindgen::handler::schedule_reinit);
 }
 
 #[wasm_bindgen(js_name = "encryptText")]
@@ -180,7 +181,11 @@ pub fn encrypt_text(
     // returned by the server. Layout: b64(salt) || passphrase_chars.
     // The JS split boundary is SALT_B64_LEN (24) chars.
     let salt_b64 = b64e(&salt);
-    debug_assert_eq!(salt_b64.len(), SALT_B64_LEN, "b64e(salt) length mismatch — SALT_B64_LEN constant is wrong");
+    debug_assert_eq!(
+        salt_b64.len(),
+        SALT_B64_LEN,
+        "b64e(salt) length mismatch — SALT_B64_LEN constant is wrong"
+    );
     let display_passphrase = format!("{}{}", salt_b64, passphrase);
 
     let obj = js_sys::Object::new();
@@ -417,7 +422,6 @@ pub fn hash_password(password: String, salt_b64: String) -> Result<String, JsVal
 //
 // NOTE: sanitize_ttl_days is intentionally not tested here because it calls
 // js_sys::Date::now() which is only available in a WASM context.
-
 
 #[cfg(test)]
 mod tests;

@@ -1,7 +1,7 @@
 FROM public.ecr.aws/docker/library/rust:1.96-alpine3.23 AS wasm-builder
 RUN apk add --no-cache brotli binaryen && \
     rustup target add wasm32-unknown-unknown && \
-    cargo install wasm-bindgen-cli --version 0.2.113 --locked
+    cargo install wasm-bindgen-cli --version 0.2.125 --locked
 WORKDIR /src/wasm
 COPY wasm/Cargo.toml wasm/Cargo.lock ./
 RUN mkdir src && \
@@ -11,7 +11,7 @@ RUN mkdir src && \
 COPY wasm/src ./src
 RUN touch src/lib.rs && \
     cargo build --release --target wasm32-unknown-unknown && \
-    wasm-bindgen --target web --out-name crypto \
+    wasm-bindgen --target web --force-enable-abort-handler --out-name crypto \
         --out-dir /wasm_out/ \
         target/wasm32-unknown-unknown/release/whisper_crypto.wasm && \
     wasm-opt -Os /wasm_out/crypto_bg.wasm -o /wasm_out/crypto_bg.wasm && \

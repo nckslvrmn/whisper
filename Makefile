@@ -8,7 +8,7 @@ deps:
 wasm:
 	@echo "Building WASM module..."
 	cd wasm && cargo build --release --target wasm32-unknown-unknown
-	PATH="$(HOME)/.cargo/bin:$(PATH)" wasm-bindgen --target web --out-name crypto \
+	PATH="$(HOME)/.cargo/bin:$(PATH)" wasm-bindgen --target web --force-enable-abort-handler --out-name crypto \
 		--out-dir web/static/ \
 		wasm/target/wasm32-unknown-unknown/release/whisper_crypto.wasm
 	@if command -v wasm-opt >/dev/null 2>&1; then \

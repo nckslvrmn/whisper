@@ -118,9 +118,15 @@ fn test_derive_keys_enc_and_auth_are_different() {
 
 // ── xchacha_encrypt / xchacha_decrypt ─────────────────────────────────
 
-fn make_nonce() -> Vec<u8> { vec![0u8; NONCE_SIZE] }
-fn make_salt()  -> Vec<u8> { vec![1u8; SALT_SIZE]  }
-fn make_header() -> Vec<u8> { vec![2u8; HEADER_SIZE] }
+fn make_nonce() -> Vec<u8> {
+    vec![0u8; NONCE_SIZE]
+}
+fn make_salt() -> Vec<u8> {
+    vec![1u8; SALT_SIZE]
+}
+fn make_header() -> Vec<u8> {
+    vec![2u8; HEADER_SIZE]
+}
 
 #[test]
 fn test_encrypt_decrypt_roundtrip_text() {
@@ -171,7 +177,10 @@ fn test_decrypt_wrong_passphrase_fails() {
 
     let ciphertext = xchacha_encrypt("correctpass", &nonce, &salt, &header, plaintext).unwrap();
     let result = xchacha_decrypt("wrongpass", &nonce, &salt, &header, &ciphertext);
-    assert!(result.is_err(), "decryption with wrong passphrase must fail");
+    assert!(
+        result.is_err(),
+        "decryption with wrong passphrase must fail"
+    );
 }
 
 #[test]
@@ -197,7 +206,10 @@ fn test_decrypt_wrong_header_fails() {
 
     let ciphertext = xchacha_encrypt("pass", &nonce, &salt, &header1, plaintext).unwrap();
     let result = xchacha_decrypt("pass", &nonce, &salt, &header2, &ciphertext);
-    assert!(result.is_err(), "wrong AAD header must cause decryption failure");
+    assert!(
+        result.is_err(),
+        "wrong AAD header must cause decryption failure"
+    );
 }
 
 #[test]
@@ -231,7 +243,14 @@ fn test_decrypt_tampered_ciphertext_fails() {
 #[test]
 fn test_ciphertext_differs_from_plaintext() {
     let plaintext = b"do not store in plaintext";
-    let ciphertext = xchacha_encrypt("pass", &make_nonce(), &make_salt(), &make_header(), plaintext).unwrap();
+    let ciphertext = xchacha_encrypt(
+        "pass",
+        &make_nonce(),
+        &make_salt(),
+        &make_header(),
+        plaintext,
+    )
+    .unwrap();
     assert_ne!(ciphertext.as_slice(), plaintext);
 }
 
@@ -239,7 +258,14 @@ fn test_ciphertext_differs_from_plaintext() {
 fn test_ciphertext_length_is_plaintext_plus_tag() {
     // XChaCha20Poly1305 appends a 16-byte authentication tag
     let plaintext = b"exactly 10 bytes!";
-    let ciphertext = xchacha_encrypt("pass", &make_nonce(), &make_salt(), &make_header(), plaintext).unwrap();
+    let ciphertext = xchacha_encrypt(
+        "pass",
+        &make_nonce(),
+        &make_salt(),
+        &make_header(),
+        plaintext,
+    )
+    .unwrap();
     assert_eq!(ciphertext.len(), plaintext.len() + 16);
 }
 
@@ -258,8 +284,12 @@ fn test_hash_password_internal_is_64_char_hex() {
     let salt = vec![0u8; SALT_SIZE];
     let hash = hash_password_internal("anypassphrase", &salt);
     assert_eq!(hash.len(), 64, "auth key must be 64 hex chars (32 bytes)");
-    assert!(hash.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
-        "hash must be lowercase hex: {}", hash);
+    assert!(
+        hash.chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()),
+        "hash must be lowercase hex: {}",
+        hash
+    );
 }
 
 #[test]
@@ -297,14 +327,18 @@ fn test_salt_b64_length_constant_matches_actual_encoding() {
     assert_eq!(
         encoded.len(),
         SALT_B64_LEN,
-        "SALT_B64_LEN ({}) != actual b64 length ({})", SALT_B64_LEN, encoded.len()
+        "SALT_B64_LEN ({}) != actual b64 length ({})",
+        SALT_B64_LEN,
+        encoded.len()
     );
 }
 
 #[test]
 fn test_display_passphrase_can_be_split_to_recover_salt() {
-    let salt_bytes = vec![0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89,
-                          0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17];
+    let salt_bytes = vec![
+        0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16,
+        0x17,
+    ];
     assert_eq!(salt_bytes.len(), SALT_SIZE);
 
     let passphrase_part = "thisIsThe32CharRandomPassphrase!";
@@ -334,7 +368,10 @@ fn test_rand_bytes_length() {
 fn test_rand_bytes_uniqueness() {
     let a = rand_bytes(32);
     let b = rand_bytes(32);
-    assert_ne!(a, b, "two independent rand_bytes(32) calls returned same value");
+    assert_ne!(
+        a, b,
+        "two independent rand_bytes(32) calls returned same value"
+    );
 }
 
 #[test]
@@ -358,7 +395,11 @@ fn test_rand_string_chars_are_in_alphabet() {
     for _ in 0..10 {
         let s = rand_string(128);
         for c in s.chars() {
-            assert!(ALPHABET.contains(c), "unexpected char {:?} in rand_string output", c);
+            assert!(
+                ALPHABET.contains(c),
+                "unexpected char {:?} in rand_string output",
+                c
+            );
         }
     }
 }
@@ -380,13 +421,21 @@ fn test_file_metadata_encrypt_decrypt_roundtrip() {
     let enc_file = xchacha_encrypt(passphrase, &file_nonce, &salt, &header, file_data).unwrap();
 
     // Encrypt metadata (meta_nonce prepended)
-    let enc_meta_raw = xchacha_encrypt(passphrase, &meta_nonce, &salt, &header, metadata_json.as_bytes()).unwrap();
+    let enc_meta_raw = xchacha_encrypt(
+        passphrase,
+        &meta_nonce,
+        &salt,
+        &header,
+        metadata_json.as_bytes(),
+    )
+    .unwrap();
     let mut enc_meta_blob = meta_nonce.clone();
     enc_meta_blob.extend_from_slice(&enc_meta_raw);
 
     // Decrypt — split enc_meta_blob
     let (recovered_meta_nonce, enc_meta) = enc_meta_blob.split_at(NONCE_SIZE);
-    let dec_meta = xchacha_decrypt(passphrase, recovered_meta_nonce, &salt, &header, enc_meta).unwrap();
+    let dec_meta =
+        xchacha_decrypt(passphrase, recovered_meta_nonce, &salt, &header, enc_meta).unwrap();
     let dec_file = xchacha_decrypt(passphrase, &file_nonce, &salt, &header, &enc_file).unwrap();
 
     assert_eq!(dec_file, file_data);
@@ -403,5 +452,8 @@ fn test_file_and_text_use_independent_nonces() {
 
     let ct1 = xchacha_encrypt(pass, &vec![0u8; NONCE_SIZE], &salt, &header, data).unwrap();
     let ct2 = xchacha_encrypt(pass, &vec![1u8; NONCE_SIZE], &salt, &header, data).unwrap();
-    assert_ne!(ct1, ct2, "different nonces must produce different ciphertext");
+    assert_ne!(
+        ct1, ct2,
+        "different nonces must produce different ciphertext"
+    );
 }
