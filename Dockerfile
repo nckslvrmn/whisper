@@ -14,7 +14,7 @@ RUN touch src/lib.rs && \
     wasm-bindgen --target web --force-enable-abort-handler --out-name crypto \
         --out-dir /wasm_out/ \
         target/wasm32-unknown-unknown/release/whisper_crypto.wasm && \
-    wasm-opt -Os /wasm_out/crypto_bg.wasm -o /wasm_out/crypto_bg.wasm && \
+    wasm-opt --enable-exception-handling -Os /wasm_out/crypto_bg.wasm -o /wasm_out/crypto_bg.wasm && \
     gzip -9 -k -f /wasm_out/crypto_bg.wasm && \
     brotli -9 -k -f /wasm_out/crypto_bg.wasm
 

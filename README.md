@@ -48,7 +48,7 @@ make server
 docker build -t whisper .
 ```
 
-`make wasm` builds the crate with `cargo build --release --target wasm32-unknown-unknown`, runs `wasm-bindgen --target web --force-enable-abort-handler` to generate `crypto.js` and `crypto_bg.wasm` into `web/static/`, then optionally optimizes with `wasm-opt` and precompresses with `gzip` and `brotli`. The Dockerfile pins `wasm-bindgen-cli` at 0.2.125 for reproducibility.
+`make wasm` builds the crate with `cargo build --release --target wasm32-unknown-unknown`, runs `wasm-bindgen --target web --force-enable-abort-handler` to generate `crypto.js` and `crypto_bg.wasm` into `web/static/`, then optionally optimizes with `wasm-opt --enable-exception-handling` and precompresses with `gzip` and `brotli`. The Dockerfile pins `wasm-bindgen-cli` at 0.2.125 for reproducibility.
 
 ## Configuration
 

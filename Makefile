@@ -12,7 +12,7 @@ wasm:
 		--out-dir web/static/ \
 		wasm/target/wasm32-unknown-unknown/release/whisper_crypto.wasm
 	@if command -v wasm-opt >/dev/null 2>&1; then \
-		wasm-opt -Os web/static/crypto_bg.wasm -o web/static/crypto_bg.wasm; \
+		wasm-opt --enable-exception-handling -Os web/static/crypto_bg.wasm -o web/static/crypto_bg.wasm; \
 	fi
 	@gzip -9 -k -f web/static/crypto_bg.wasm
 	@if command -v brotli >/dev/null 2>&1; then \
