@@ -14,7 +14,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.47
 	golang.org/x/crypto v0.53.0
 	google.golang.org/api v0.286.0
-	google.golang.org/grpc v1.81.1
+	google.golang.org/grpc v1.82.1
 )
 
 require (
