@@ -1,5 +1,3 @@
-import init, { encryptText, encryptFile, decryptText, decryptFile, hashPassword } from '/static/crypto.js';
-
 // Salt is embedded in the first SALT_B64_LEN characters of the display
 // passphrase as URL_SAFE (padded) base64. The rest is the actual passphrase.
 // This matches the layout produced by the Rust encryptText/encryptFile exports.
@@ -25,11 +23,35 @@ const TIMEOUTS = {
   COPY_RESET: 2000,
 };
 
-let wasmReady = false;
-async function initWASM() {
-  if (wasmReady) return;
-  await init('/static/crypto_bg.wasm');
-  wasmReady = true;
+// All crypto runs in a module worker so Argon2id never blocks the UI thread.
+const cryptoWorker = new Worker('/static/worker.js', { type: 'module' });
+const pendingCalls = new Map();
+let nextCallId = 1;
+
+cryptoWorker.onmessage = ({ data: { id, result, error } }) => {
+  const call = pendingCalls.get(id);
+  if (!call) return;
+  pendingCalls.delete(id);
+  if (error) call.reject(new Error(error));
+  else call.resolve(result);
+};
+
+cryptoWorker.onerror = (event) => {
+  const failure = new Error(event.message || 'crypto worker failed');
+  for (const call of pendingCalls.values()) call.reject(failure);
+  pendingCalls.clear();
+};
+
+function callCrypto(op, args = [], transfer = []) {
+  const id = nextCallId++;
+  return new Promise((resolve, reject) => {
+    pendingCalls.set(id, { resolve, reject });
+    cryptoWorker.postMessage({ id, op, args }, transfer);
+  });
+}
+
+function initWASM() {
+  return callCrypto('ready');
 }
 
 function getTTLConfig(disableTTLId, disableViewCountId, exactTTLId, defaultViewCount = '1', defaultTTLDays = '7') {
@@ -63,32 +85,16 @@ function getTTLConfig(disableTTLId, disableViewCountId, exactTTLId, defaultViewC
   return { viewCount, ttlDays, ttlTimestamp };
 }
 
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  const chunkSize = 8192;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.slice(i, i + chunkSize);
-    binary += String.fromCharCode.apply(null, chunk);
-  }
-  return btoa(binary);
-}
-
-function base64ToBlob(base64, type) {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return new Blob([bytes], { type });
-}
-
 async function postJSON(url, data) {
-  const response = await fetch(url, {
+  return request(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
+}
+
+async function request(url, options) {
+  const response = await fetch(url, options);
 
   if (!response.ok) {
     if (response.status === 401) throw new Error('Unauthorized');
@@ -96,19 +102,15 @@ async function postJSON(url, data) {
     throw new Error(`Request failed: ${response.status}`);
   }
 
-  return response.json();
+  return response;
 }
 
-async function handleEncryption(encryptFn, endpoint, extraData = {}) {
-  const includePassphrase = !!extraData.includePassphrase;
-  delete extraData.includePassphrase;
-  const submitBtn = extraData.isFile ? document.getElementById('submitBtnFile') : document.getElementById('submitBtn');
-  const submitBtnText = extraData.isFile ? document.getElementById('submitBtnFileText') : document.getElementById('submitBtnText');
+async function handleEncryption({ encrypt, upload, isFile, includePassphrase }) {
+  const submitBtn = isFile ? document.getElementById('submitBtnFile') : document.getElementById('submitBtn');
+  const submitBtnText = isFile ? document.getElementById('submitBtnFileText') : document.getElementById('submitBtnText');
   let infoToast = null;
 
   try {
-    await initWASM();
-
     if (submitBtn) {
       submitBtn.disabled = true;
       submitBtnText.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Encrypting...';
@@ -119,22 +121,11 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
       message: 'Encrypting your secret...'
     });
 
-    const result = encryptFn();
-    if (result.error) throw new Error(result.error);
-
     // Salt is NOT sent to the server — it is embedded in result.passphrase.
     // The server therefore cannot assist offline Argon2 attacks even if the
     // passwordHash store is fully compromised.
-    const responseData = await postJSON(endpoint, {
-      passwordHash: result.passwordHash,
-      encryptedData: result.encryptedData || result.encryptedMetadata,
-      nonce: result.nonce,
-      header: result.header,
-      viewCount: result.viewCount,
-      ttl: result.ttl,
-      ...extraData,
-      ...(result.encryptedFile && { encryptedFile: result.encryptedFile, encryptedMetadata: result.encryptedMetadata })
-    });
+    const result = await encrypt();
+    const responseData = await upload(result);
 
     if (infoToast) toast.dismiss(infoToast);
 
@@ -158,14 +149,14 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
       </button>`,
       false);
 
-    clearForm(extraData.isFile);
+    clearForm(isFile);
     scrollToResults();
 
     toast.success('Secret created successfully!');
   } catch (error) {
     console.error('Error:', error);
     if (infoToast) toast.dismiss(infoToast);
-    toast.error(`Failed to encrypt ${extraData.isFile ? 'file' : 'secret'}`);
+    toast.error(`Failed to encrypt ${isFile ? 'file' : 'secret'}`);
 
   } finally {
     if (submitBtn) {
@@ -173,6 +164,36 @@ async function handleEncryption(encryptFn, endpoint, extraData = {}) {
       submitBtnText.textContent = 'Create Secret Link';
     }
   }
+}
+
+async function uploadText(result) {
+  const response = await postJSON('/encrypt', {
+    passwordHash: result.passwordHash,
+    encryptedData: result.encryptedData,
+    nonce: result.nonce,
+    header: result.header,
+    viewCount: result.viewCount,
+    ttl: result.ttl
+  });
+  return response.json();
+}
+
+// The ciphertext goes up as a raw multipart part, so nothing is base64-encoded
+// on the wire and the server can stream it straight into storage.
+async function uploadFile(result) {
+  const form = new FormData();
+  form.append('payload', JSON.stringify({
+    passwordHash: result.passwordHash,
+    encryptedMetadata: result.encryptedMetadata,
+    nonce: result.nonce,
+    header: result.header,
+    viewCount: result.viewCount,
+    ttl: result.ttl
+  }));
+  form.append('file', new Blob([result.encryptedFile], { type: 'application/octet-stream' }));
+
+  const response = await request('/encrypt_file', { method: 'POST', body: form });
+  return response.json();
 }
 
 async function postSecretFile(event) {
@@ -198,16 +219,21 @@ async function postSecretFile(event) {
     fileFormData.get('ttl_days') || '7'
   );
 
-  const arrayBuffer = await file.arrayBuffer();
-  const base64 = arrayBufferToBase64(arrayBuffer);
-
   const includePassphrase = document.getElementById('includePassphraseFile')?.checked === true;
 
-  await handleEncryption(
-    () => encryptFile(base64, file.name, file.type, viewCount, ttlDays, ttlTimestamp),
-    '/encrypt_file',
-    { isFile: true, includePassphrase }
-  );
+  await handleEncryption({
+    encrypt: async () => {
+      const buffer = await file.arrayBuffer();
+      return callCrypto(
+        'encryptFile',
+        [buffer, file.name, file.type, viewCount, ttlDays, ttlTimestamp],
+        [buffer]
+      );
+    },
+    upload: uploadFile,
+    isFile: true,
+    includePassphrase
+  });
 }
 
 async function postSecret(event) {
@@ -237,11 +263,12 @@ async function postSecret(event) {
 
   const includePassphrase = document.getElementById('includePassphrase')?.checked === true;
 
-  await handleEncryption(
-    () => encryptText(secret, viewCount, ttlDays, ttlTimestamp),
-    '/encrypt',
-    { isFile: false, includePassphrase }
-  );
+  await handleEncryption({
+    encrypt: () => callCrypto('encryptText', [secret, viewCount, ttlDays, ttlTimestamp]),
+    upload: uploadText,
+    isFile: false,
+    includePassphrase
+  });
 }
 
 async function getSecret(event) {
@@ -277,9 +304,9 @@ async function getSecret(event) {
     // The display passphrase contains the salt in its first SALT_B64_LEN chars.
     // Split it here so we can authenticate and decrypt in a single server round-trip.
     const { saltB64, passphrase: actualPassphrase } = splitPassphrase(passphrase);
-    const passwordHash = hashPassword(actualPassphrase, saltB64);
+    const passwordHash = await callCrypto('hashPassword', [actualPassphrase, saltB64]);
 
-    const data = await postJSON('/decrypt', {
+    const response = await postJSON('/decrypt', {
       secret_id: secretId,
       passwordHash: passwordHash
     }).catch(err => {
@@ -289,19 +316,24 @@ async function getSecret(event) {
 
     if (infoToast) toast.dismiss(infoToast);
 
-    if (data.isFile) {
-      const result = decryptFile(
-        data.encryptedFile,
-        data.encryptedMetadata,
-        actualPassphrase,
-        data.nonce,
-        saltB64,
-        data.header
+    // File secrets come back as a raw ciphertext body with the small fields in
+    // X-Whisper-* headers, text secrets come back as JSON.
+    if ((response.headers.get('Content-Type') || '').startsWith('application/octet-stream')) {
+      const buffer = await response.arrayBuffer();
+      const result = await callCrypto(
+        'decryptFile',
+        [
+          buffer,
+          response.headers.get('X-Whisper-Encrypted-Metadata'),
+          actualPassphrase,
+          response.headers.get('X-Whisper-Nonce'),
+          saltB64,
+          response.headers.get('X-Whisper-Header')
+        ],
+        [buffer]
       );
 
-      if (result.error) throw new Error(result.error);
-
-      const blob = base64ToBlob(result.fileData, result.fileType);
+      const blob = new Blob([result.fileData], { type: result.fileType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -317,15 +349,12 @@ async function getSecret(event) {
       if (fileNameEl) fileNameEl.textContent = result.fileName;
       toast.success('File downloaded successfully');
     } else {
-      const result = decryptText(
-        data.encryptedData,
-        actualPassphrase,
-        data.nonce,
-        saltB64,
-        data.header
+      const data = await response.json();
+      const result = await callCrypto(
+        'decryptText',
+        [data.encryptedData, actualPassphrase, data.nonce, saltB64, data.header]
       );
 
-      if (result.error) throw new Error(result.error);
       const contentId = 'decryptedContent_' + Date.now();
       // Set structure via innerHTML but inject the actual secret content via
       // textContent only — prevents XSS if the secret contains HTML or JS.

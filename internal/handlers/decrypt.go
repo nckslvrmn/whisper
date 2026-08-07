@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -11,105 +14,138 @@ import (
 	"github.com/nckslvrmn/whisper/internal/storage/types"
 )
 
-func Decrypt(c echo.Context) error {
-	var requestData struct {
-		SecretId     string `json:"secret_id"`
-		PasswordHash string `json:"passwordHash"`
-	}
+const notFoundMessage = "Secret not found or already viewed"
 
-	err := c.Bind(&requestData)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
-	}
+type DecryptRequest struct {
+	SecretId     string `json:"secret_id"`
+	PasswordHash string `json:"passwordHash"`
+}
 
-	if requestData.SecretId == "" {
+func (r *DecryptRequest) validate() error {
+	if r.SecretId == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "missing secret_id")
 	}
-
-	if !validateSecretID(requestData.SecretId) {
+	if !validateSecretID(r.SecretId) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid secret_id format")
+	}
+	if r.PasswordHash == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "missing password hash")
+	}
+	if !validatePasswordHash(r.PasswordHash) {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid password hash format")
+	}
+	return nil
+}
+
+type TextResponse struct {
+	EncryptedData string `json:"encryptedData"`
+	Nonce         string `json:"nonce"`
+	Header        string `json:"header"`
+	IsFile        bool   `json:"isFile"`
+}
+
+func Decrypt(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var req DecryptRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+	if err := req.validate(); err != nil {
+		return err
 	}
 
 	secretStore := storage.GetSecretStore()
-	secretDataJson, err := secretStore.GetSecretRaw(requestData.SecretId)
+	encoded, ttl, err := secretStore.GetSecret(ctx, req.SecretId)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusNotFound, "Secret not found or already viewed")
+		if errors.Is(err, types.ErrNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, notFoundMessage)
+		}
+		c.Logger().Error("error reading secret: ", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "error reading secret")
 	}
 
-	var secretData map[string]any
-	if err := json.Unmarshal(secretDataJson, &secretData); err != nil {
+	var payload SecretPayload
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		c.Logger().Error("error parsing secret data: ", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "invalid secret data")
 	}
 
-	// Enforce TTL at read time — storage-layer cleanup is async and may lag.
-	if ttlRaw, exists := secretData["ttl"]; exists {
-		if ttl, ok := ttlRaw.(float64); ok && ttl > 0 && time.Now().Unix() > int64(ttl) {
-			secretStore.DeleteSecret(requestData.SecretId)
-			if isExpiredFile, ok := secretData["isFile"].(bool); ok && isExpiredFile {
-				if fs := storage.GetFileStore(); fs != nil {
-					fs.DeleteFile(requestData.SecretId)
-				}
-			}
-			return echo.NewHTTPError(http.StatusNotFound, "Secret not found or already viewed")
+	// Storage-layer cleanup is async and may lag, so expiry is enforced here too.
+	if ttl != nil && *ttl > 0 && time.Now().Unix() > *ttl {
+		purge(c, req.SecretId, payload.IsFile)
+		return echo.NewHTTPError(http.StatusNotFound, notFoundMessage)
+	}
+
+	if subtle.ConstantTimeCompare([]byte(payload.PasswordHash), []byte(req.PasswordHash)) != 1 {
+		return echo.NewHTTPError(http.StatusNotFound, notFoundMessage)
+	}
+
+	// The file reader is opened before the view is consumed so a storage
+	// failure cannot burn a view without delivering anything.
+	var file io.ReadCloser
+	if payload.IsFile {
+		file, err = storage.GetFileStore().GetEncryptedFile(ctx, req.SecretId)
+		if err != nil {
+			c.Logger().Error("error reading encrypted file: ", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "error reading encrypted file")
 		}
+		defer file.Close()
 	}
 
-	if requestData.PasswordHash == "" {
-		return echo.NewHTTPError(http.StatusNotFound, "Secret not found or already viewed")
+	remaining, err := secretStore.ConsumeView(ctx, req.SecretId)
+	if err != nil {
+		if errors.Is(err, types.ErrNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, notFoundMessage)
+		}
+		c.Logger().Error("error consuming view: ", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "error consuming view")
 	}
 
-	if !validatePasswordHash(requestData.PasswordHash) {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid password hash format")
+	if !payload.IsFile {
+		return c.JSON(http.StatusOK, TextResponse{
+			EncryptedData: payload.EncryptedData,
+			Nonce:         payload.Nonce,
+			Header:        payload.Header,
+		})
 	}
 
-	storedHash, ok := secretData["passwordHash"].(string)
-	if !ok || subtle.ConstantTimeCompare([]byte(storedHash), []byte(requestData.PasswordHash)) != 1 {
-		return echo.NewHTTPError(http.StatusNotFound, "Secret not found or already viewed")
+	header := c.Response().Header()
+	header.Set("X-Whisper-Nonce", payload.Nonce)
+	header.Set("X-Whisper-Header", payload.Header)
+	header.Set("X-Whisper-Encrypted-Metadata", payload.EncryptedMetadata)
+	header.Set("X-Whisper-Is-File", "true")
+
+	streamErr := c.Stream(http.StatusOK, echo.MIMEOctetStream, file)
+
+	// The view is spent either way, so a mid-stream client disconnect still
+	// deletes the file rather than leaving it orphaned.
+	if remaining == 0 {
+		deleteFile(c, req.SecretId)
 	}
 
-	isFile, ok := secretData["isFile"].(bool)
-	if !ok {
-		isFile = false
-	}
-	response := map[string]any{
-		"encryptedData":     secretData["encryptedData"],
-		"encryptedMetadata": secretData["encryptedMetadata"],
-		"nonce":             secretData["nonce"],
-		"header":            secretData["header"],
-		"isFile":            isFile,
-	}
+	return streamErr
+}
 
-	var fileStore types.FileStore
+func purge(c echo.Context, secretId string, isFile bool) {
+	if err := storage.GetSecretStore().DeleteSecret(c.Request().Context(), secretId); err != nil {
+		c.Logger().Error("error deleting expired secret: ", err)
+	}
 	if isFile {
-		fileStore = storage.GetFileStore()
-		encryptedFile, err := fileStore.GetEncryptedFile(requestData.SecretId)
-		if err == nil {
-			response["encryptedFile"] = string(encryptedFile)
-		}
+		deleteFile(c, secretId)
 	}
+}
 
-	if viewCountRaw, exists := secretData["viewCount"]; exists {
-		viewCount, ok := viewCountRaw.(float64)
-		if !ok {
-			viewCount = 1
-		}
-		if viewCount > 0 {
-			viewCount--
-			if viewCount == 0 {
-				secretStore.DeleteSecret(requestData.SecretId)
-				if isFile && fileStore != nil {
-					fileStore.DeleteFile(requestData.SecretId)
-				}
-			} else {
-				secretData["viewCount"] = viewCount
-				updatedJson, err := json.Marshal(secretData)
-				if err != nil {
-					return echo.NewHTTPError(http.StatusInternalServerError, "error updating secret")
-				}
-				secretStore.UpdateSecretRaw(requestData.SecretId, updatedJson)
-			}
-		}
+func deleteFile(c echo.Context, secretId string) {
+	fileStore := storage.GetFileStore()
+	if fileStore == nil {
+		return
 	}
+	// The request context may already be cancelled by a finished response.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request().Context()), 10*time.Second)
+	defer cancel()
 
-	return c.JSON(http.StatusOK, response)
+	if err := fileStore.DeleteEncryptedFile(ctx, secretId); err != nil {
+		c.Logger().Error("error deleting encrypted file: ", err)
+	}
 }

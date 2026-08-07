@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -124,7 +126,7 @@ func (c *Client) StoreFile(ctx context.Context, name, contentType string, data [
 	if err != nil {
 		return nil, err
 	}
-	id, err := c.postEncrypt(ctx, "encrypt_file", payload)
+	id, err := c.postEncryptFile(ctx, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -188,23 +190,48 @@ func (c *Client) Retrieve(ctx context.Context, secretID, displayPassphrase strin
 		return nil, apiError(resp)
 	}
 
-	var decrypt DecryptResponse
-	if err := json.NewDecoder(resp.Body).Decode(&decrypt); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+	decrypt, err := decodeDecryptResponse(resp)
+	if err != nil {
+		return nil, err
 	}
 
 	if decrypt.IsFile {
-		f, err := DecryptFile(&decrypt, displayPassphrase)
+		f, err := DecryptFile(decrypt, displayPassphrase)
 		if err != nil {
 			return nil, err
 		}
 		return &Retrieved{IsFile: true, File: f}, nil
 	}
-	text, err := DecryptText(&decrypt, displayPassphrase)
+	text, err := DecryptText(decrypt, displayPassphrase)
 	if err != nil {
 		return nil, err
 	}
 	return &Retrieved{Text: text}, nil
+}
+
+// Text secrets come back as JSON, file secrets as a raw ciphertext body plus
+// X-Whisper-* headers.
+func decodeDecryptResponse(resp *http.Response) (*DecryptResponse, error) {
+	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if mediaType != "application/octet-stream" {
+		var decrypt DecryptResponse
+		if err := json.NewDecoder(resp.Body).Decode(&decrypt); err != nil {
+			return nil, fmt.Errorf("decode response: %w", err)
+		}
+		return &decrypt, nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read encrypted file: %w", err)
+	}
+	return &DecryptResponse{
+		EncryptedMetadata: resp.Header.Get("X-Whisper-Encrypted-Metadata"),
+		Nonce:             resp.Header.Get("X-Whisper-Nonce"),
+		Header:            resp.Header.Get("X-Whisper-Header"),
+		IsFile:            true,
+		EncryptedFile:     body,
+	}, nil
 }
 
 func (c *Client) postEncrypt(ctx context.Context, path string, payload any) (string, error) {
@@ -218,6 +245,10 @@ func (c *Client) postEncrypt(ctx context.Context, path string, payload any) (str
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	return c.doEncrypt(req)
+}
+
+func (c *Client) doEncrypt(req *http.Request) (string, error) {
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return "", err
@@ -239,6 +270,50 @@ func (c *Client) postEncrypt(ctx context.Context, path string, payload any) (str
 		return "", errors.New("server returned empty secretId")
 	}
 	return out.SecretID, nil
+}
+
+// postEncryptFile uploads a file secret as multipart/form-data: a JSON
+// "payload" part followed by the raw ciphertext as the "file" part. The server
+// streams both, so nothing is base64-encoded on the wire.
+func (c *Client) postEncryptFile(ctx context.Context, payload *FilePayload) (string, error) {
+	meta, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+
+	pr, pw := io.Pipe()
+	mw := multipart.NewWriter(pw)
+	go func() {
+		pw.CloseWithError(writeFileParts(mw, meta, payload.EncryptedFile))
+	}()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.resolve("encrypt_file"), pr)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+
+	return c.doEncrypt(req)
+}
+
+func writeFileParts(mw *multipart.Writer, meta, file []byte) error {
+	part, err := mw.CreateFormField("payload")
+	if err != nil {
+		return err
+	}
+	if _, err := part.Write(meta); err != nil {
+		return err
+	}
+
+	part, err = mw.CreateFormFile("file", "secret.enc")
+	if err != nil {
+		return err
+	}
+	if _, err := part.Write(file); err != nil {
+		return err
+	}
+
+	return mw.Close()
 }
 
 // APIError is returned for non-2xx responses from the whisper server.

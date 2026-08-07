@@ -1,7 +1,7 @@
-FROM public.ecr.aws/docker/library/rust:1.96-alpine3.23 AS wasm-builder
+FROM public.ecr.aws/docker/library/rust:1.97-alpine3.23 AS wasm-builder
 RUN apk add --no-cache brotli binaryen && \
     rustup target add wasm32-unknown-unknown && \
-    cargo install wasm-bindgen-cli --version 0.2.125 --locked
+    cargo install wasm-bindgen-cli --version 0.2.126 --locked
 WORKDIR /src/wasm
 COPY wasm/Cargo.toml wasm/Cargo.lock ./
 RUN mkdir src && \
@@ -61,4 +61,5 @@ COPY --from=go-builder --chmod=0755 /src/whisper /whisper
 USER 1000:1000
 
 EXPOSE 8081
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD ["/whisper", "-healthcheck"]
 ENTRYPOINT ["/whisper"]

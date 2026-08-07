@@ -2,143 +2,200 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
+	"mime/multipart"
 	"net/http"
-	"time"
 
 	echo "github.com/labstack/echo/v4"
-	"github.com/nckslvrmn/whisper/internal/config"
 	"github.com/nckslvrmn/whisper/internal/storage"
 	"github.com/nckslvrmn/whisper/pkg/utils"
 )
 
-type E2EData struct {
+// The JSON part of an /encrypt_file upload only carries the metadata blob,
+// which is a few hundred bytes.
+const maxPayloadPart = 64 * 1024
+
+type TextRequest struct {
+	PasswordHash  string `json:"passwordHash"`
+	EncryptedData string `json:"encryptedData"`
+	Nonce         string `json:"nonce"`
+	Header        string `json:"header"`
+	ViewCount     *int   `json:"viewCount,omitempty"`
+	TTL           *int64 `json:"ttl,omitempty"`
+}
+
+func (r *TextRequest) validate() error {
+	if r.PasswordHash == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "missing password hash")
+	}
+	if !validatePasswordHash(r.PasswordHash) {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid password hash format")
+	}
+	if r.EncryptedData == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "missing encrypted data")
+	}
+	if len(r.EncryptedData) > MaxTextSize() {
+		return echo.NewHTTPError(http.StatusBadRequest, "text size exceeds limit")
+	}
+	if r.Nonce == "" || r.Header == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "missing nonce or header")
+	}
+	return validateLimits(r.ViewCount, r.TTL)
+}
+
+// FileRequest is the JSON "payload" part of a multipart /encrypt_file upload.
+// The ciphertext itself is the separate "file" part.
+type FileRequest struct {
 	PasswordHash      string `json:"passwordHash"`
-	EncryptedData     string `json:"encryptedData"`
-	EncryptedFile     string `json:"encryptedFile,omitempty"`
-	EncryptedMetadata string `json:"encryptedMetadata,omitempty"`
+	EncryptedMetadata string `json:"encryptedMetadata"`
 	Nonce             string `json:"nonce"`
 	Header            string `json:"header"`
 	ViewCount         *int   `json:"viewCount,omitempty"`
 	TTL               *int64 `json:"ttl,omitempty"`
-	IsFile            bool   `json:"isFile"`
 }
 
-func (e *E2EData) Validate(isFile bool) error {
-	if e.PasswordHash == "" {
+func (r *FileRequest) validate() error {
+	if r.PasswordHash == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "missing password hash")
 	}
-
-	if !validatePasswordHash(e.PasswordHash) {
+	if !validatePasswordHash(r.PasswordHash) {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid password hash format")
 	}
-
-	if isFile {
-		if e.EncryptedFile != "" && len(e.EncryptedFile) > MaxFileSize() {
-			return echo.NewHTTPError(http.StatusBadRequest, "file size exceeds limit")
-		}
-	} else {
-		if e.EncryptedData == "" {
-			return echo.NewHTTPError(http.StatusBadRequest, "missing encrypted data")
-		}
-		if len(e.EncryptedData) > MaxTextSize() {
-			return echo.NewHTTPError(http.StatusBadRequest, "text size exceeds limit")
-		}
+	if r.EncryptedMetadata == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "missing encrypted metadata")
 	}
-
-	return nil
+	if r.Nonce == "" || r.Header == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "missing nonce or header")
+	}
+	return validateLimits(r.ViewCount, r.TTL)
 }
 
 func EncryptString(c echo.Context) error {
-	var data E2EData
-
-	if err := c.Bind(&data); err != nil {
+	var req TextRequest
+	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
-
-	if err := data.Validate(false); err != nil {
+	if err := req.validate(); err != nil {
 		return err
 	}
 
-	return storeEncryptedData(c, &data, false)
+	payload := SecretPayload{
+		PasswordHash:  req.PasswordHash,
+		EncryptedData: req.EncryptedData,
+		Nonce:         req.Nonce,
+		Header:        req.Header,
+	}
+
+	secretId := utils.RandString(16, true)
+	if err := storeSecret(c, secretId, payload, req.TTL, req.ViewCount); err != nil {
+		return err
+	}
+
+	return respondStored(c, secretId)
 }
 
 func EncryptFile(c echo.Context) error {
-	var data E2EData
+	ctx := c.Request().Context()
 
-	if err := c.Bind(&data); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	parts, err := c.Request().MultipartReader()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "expected multipart/form-data")
 	}
 
-	if err := data.Validate(true); err != nil {
+	req, err := readPayloadPart(parts)
+	if err != nil {
+		return err
+	}
+	if err := req.validate(); err != nil {
 		return err
 	}
 
-	if data.EncryptedFile != "" {
-		secretId := utils.RandString(16, true)
-		fileStore := storage.GetFileStore()
-		if err := fileStore.StoreEncryptedFile(secretId, []byte(data.EncryptedFile)); err != nil {
-			c.Logger().Error("error storing file: ", err)
-			return echo.NewHTTPError(http.StatusInternalServerError, "error storing file")
-		}
-		return storeEncryptedDataWithId(c, &data, true, secretId)
+	filePart, err := parts.NextPart()
+	if err != nil || filePart.FormName() != "file" {
+		return echo.NewHTTPError(http.StatusBadRequest, "missing file part")
 	}
 
-	return storeEncryptedData(c, &data, true)
+	secretId := utils.RandString(16, true)
+	fileStore := storage.GetFileStore()
+	body := &limitedReader{r: filePart, limit: int64(MaxFileSize())}
+
+	if err := fileStore.StoreEncryptedFile(ctx, secretId, body); err != nil {
+		discardFile(c, secretId)
+		if errors.Is(err, errFileTooLarge) {
+			return echo.NewHTTPError(http.StatusBadRequest, "file size exceeds limit")
+		}
+		c.Logger().Error("error storing file: ", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "error storing file")
+	}
+
+	if body.read == 0 {
+		discardFile(c, secretId)
+		return echo.NewHTTPError(http.StatusBadRequest, "empty file part")
+	}
+
+	if _, err := parts.NextPart(); !errors.Is(err, io.EOF) {
+		discardFile(c, secretId)
+		return echo.NewHTTPError(http.StatusBadRequest, "unexpected extra multipart part")
+	}
+
+	payload := SecretPayload{
+		PasswordHash:      req.PasswordHash,
+		EncryptedMetadata: req.EncryptedMetadata,
+		Nonce:             req.Nonce,
+		Header:            req.Header,
+		IsFile:            true,
+	}
+
+	if err := storeSecret(c, secretId, payload, req.TTL, req.ViewCount); err != nil {
+		discardFile(c, secretId)
+		return err
+	}
+
+	return respondStored(c, secretId)
 }
 
-func storeEncryptedData(c echo.Context, data *E2EData, isFile bool) error {
-	return storeEncryptedDataWithId(c, data, isFile, utils.RandString(16, true))
+func readPayloadPart(parts *multipart.Reader) (*FileRequest, error) {
+	part, err := parts.NextPart()
+	if err != nil || part.FormName() != "payload" {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "missing payload part")
+	}
+	defer part.Close()
+
+	raw, err := io.ReadAll(io.LimitReader(part, maxPayloadPart))
+	if err != nil {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "invalid payload part")
+	}
+
+	var req FileRequest
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "invalid payload part")
+	}
+	return &req, nil
 }
 
-func storeEncryptedDataWithId(c echo.Context, data *E2EData, isFile bool, secretId string) error {
-	if !config.AdvancedFeatures {
-		if data.TTL == nil || data.ViewCount == nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "advanced features are disabled")
-		}
-	}
-
-	secretData := map[string]any{
-		"passwordHash":      data.PasswordHash,
-		"encryptedData":     data.EncryptedData,
-		"encryptedMetadata": data.EncryptedMetadata,
-		"nonce":             data.Nonce,
-		"header":            data.Header,
-		"isFile":            isFile,
-	}
-
-	if data.ViewCount != nil {
-		vc := *data.ViewCount
-		if vc < 0 || vc > 10 {
-			return echo.NewHTTPError(http.StatusBadRequest, "view count must be between 1 and 10")
-		}
-		if vc > 0 {
-			// 0 means unlimited — don't store viewCount, no expiry-by-view.
-			secretData["viewCount"] = vc
-		}
-	}
-	if data.TTL != nil {
-		now := time.Now().Unix()
-		maxTTL := time.Now().Add(30 * 24 * time.Hour).Unix()
-		if *data.TTL <= now {
-			return echo.NewHTTPError(http.StatusBadRequest, "TTL must be in the future")
-		}
-		if *data.TTL > maxTTL {
-			return echo.NewHTTPError(http.StatusBadRequest, "TTL cannot exceed 30 days")
-		}
-		secretData["ttl"] = *data.TTL
-	}
-
-	secretStore := storage.GetSecretStore()
-	secretDataJson, err := json.Marshal(secretData)
+func storeSecret(c echo.Context, secretId string, payload SecretPayload, ttl *int64, viewCount *int) error {
+	encoded, err := json.Marshal(payload)
 	if err != nil {
 		c.Logger().Error("error serializing secret data: ", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "error serializing secret data")
 	}
 
-	if err := secretStore.StoreSecretRaw(secretId, secretDataJson, data.TTL, data.ViewCount); err != nil {
+	if err := storage.GetSecretStore().StoreSecret(c.Request().Context(), secretId, encoded, ttl, viewCount); err != nil {
 		c.Logger().Error("error storing secret: ", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "error storing secret")
 	}
 
+	return nil
+}
+
+// discardFile keeps a failed upload from leaving an object behind forever.
+func discardFile(c echo.Context, secretId string) {
+	if err := storage.GetFileStore().DeleteEncryptedFile(c.Request().Context(), secretId); err != nil {
+		c.Logger().Error("error deleting orphaned file: ", err)
+	}
+}
+
+func respondStored(c echo.Context, secretId string) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "success", "secretId": secretId})
 }

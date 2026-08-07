@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"html/template"
 	"io"
@@ -46,7 +47,36 @@ func getTemplateData() TemplateData {
 	}
 }
 
+// runHealthcheck backs the container HEALTHCHECK. The scratch image has no
+// shell or curl, so the binary probes itself.
+func runHealthcheck() int {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8081"
+	}
+
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://localhost:" + port + "/healthz")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck failed:", err)
+		return 1
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintln(os.Stderr, "healthcheck failed: HTTP", resp.StatusCode)
+		return 1
+	}
+	return 0
+}
+
 func main() {
+	healthcheck := flag.Bool("healthcheck", false, "probe a running server on $PORT and exit 0 when healthy")
+	flag.Parse()
+	if *healthcheck {
+		os.Exit(runHealthcheck())
+	}
+
 	e := echo.New()
 
 	if err := config.LoadAppConfig(); err != nil {
@@ -88,6 +118,7 @@ func main() {
 			"font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; " +
 			"img-src 'self' data:; " +
 			"connect-src 'self' https://cdnjs.cloudflare.com; " +
+			"worker-src 'self'; " +
 			"frame-ancestors 'none'; " +
 			"base-uri 'self'; " +
 			"object-src 'none';",
@@ -108,8 +139,15 @@ func main() {
 
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
+		// Static assets are pre-compressed, and every API body is ciphertext
+		// or base64 ciphertext, which gzip cannot shrink.
 		Skipper: func(c echo.Context) bool {
-			return len(c.Path()) >= 7 && c.Path()[:7] == "/static"
+			path := c.Path()
+			switch path {
+			case "/encrypt", "/encrypt_file", "/decrypt", "/healthz":
+				return true
+			}
+			return len(path) >= 7 && path[:7] == "/static"
 		},
 	}))
 	e.Use(middleware.Recover())
@@ -127,6 +165,7 @@ func main() {
 	e.HidePort = true
 
 	e.GET("/", index)
+	e.GET("/healthz", healthz)
 	e.GET("/secret/:secret_id", secret)
 	e.POST("/encrypt", handlers.EncryptString)
 	e.POST("/encrypt_file", handlers.EncryptFile)
@@ -151,7 +190,15 @@ func main() {
 		e.Logger.Fatal(err)
 	}
 
+	if err := storage.Close(); err != nil {
+		e.Logger.Errorf("error closing storage: %v", err)
+	}
+
 	e.Logger.Info("Server shutdown complete")
+}
+
+func healthz(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func index(c echo.Context) error {

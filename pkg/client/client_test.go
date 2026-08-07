@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -119,36 +120,72 @@ type fakeServer struct {
 func newFakeServer() *httptest.Server {
 	fs := &fakeServer{secrets: map[string]map[string]any{}}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/encrypt", fs.handleEncrypt(false))
-	mux.HandleFunc("/encrypt_file", fs.handleEncrypt(true))
+	mux.HandleFunc("/encrypt", fs.handleEncryptText)
+	mux.HandleFunc("/encrypt_file", fs.handleEncryptFile)
 	mux.HandleFunc("/decrypt", fs.handleDecrypt)
 	return httptest.NewServer(mux)
 }
 
-func (fs *fakeServer) handleEncrypt(isFile bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		// Use a fixed-length ID to match server regex requirements.
-		id := "0123456789abcdef"
-		for i := 0; ; i++ {
-			fs.mu.Lock()
-			_, exists := fs.secrets[id]
-			fs.mu.Unlock()
-			if !exists {
-				break
-			}
-			id = strings.Repeat("a", 15) + string(rune('a'+i))
-		}
-		body["isFile"] = isFile
-		fs.mu.Lock()
-		fs.secrets[id] = body
-		fs.mu.Unlock()
-		json.NewEncoder(w).Encode(map[string]string{"status": "success", "secretId": id})
+func (fs *fakeServer) handleEncryptText(w http.ResponseWriter, r *http.Request) {
+	var body map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
+	body["isFile"] = false
+	fs.store(w, body)
+}
+
+func (fs *fakeServer) handleEncryptFile(w http.ResponseWriter, r *http.Request) {
+	parts, err := r.MultipartReader()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	payloadPart, err := parts.NextPart()
+	if err != nil || payloadPart.FormName() != "payload" {
+		http.Error(w, "missing payload part", http.StatusBadRequest)
+		return
+	}
+	var body map[string]any
+	if err := json.NewDecoder(payloadPart).Decode(&body); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	filePart, err := parts.NextPart()
+	if err != nil || filePart.FormName() != "file" {
+		http.Error(w, "missing file part", http.StatusBadRequest)
+		return
+	}
+	file, err := io.ReadAll(filePart)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	body["isFile"] = true
+	body["file"] = file
+	fs.store(w, body)
+}
+
+func (fs *fakeServer) store(w http.ResponseWriter, body map[string]any) {
+	// Use a fixed-length ID to match server regex requirements.
+	id := "0123456789abcdef"
+	for i := 0; ; i++ {
+		fs.mu.Lock()
+		_, exists := fs.secrets[id]
+		fs.mu.Unlock()
+		if !exists {
+			break
+		}
+		id = strings.Repeat("a", 15) + string(rune('a'+i))
+	}
+	fs.mu.Lock()
+	fs.secrets[id] = body
+	fs.mu.Unlock()
+	json.NewEncoder(w).Encode(map[string]string{"status": "success", "secretId": id})
 }
 
 func (fs *fakeServer) handleDecrypt(w http.ResponseWriter, r *http.Request) {
@@ -171,17 +208,21 @@ func (fs *fakeServer) handleDecrypt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	resp := map[string]any{
-		"encryptedData":     secret["encryptedData"],
-		"encryptedMetadata": secret["encryptedMetadata"],
-		"nonce":             secret["nonce"],
-		"header":            secret["header"],
-		"isFile":            secret["isFile"],
+	if isFile, _ := secret["isFile"].(bool); isFile {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("X-Whisper-Nonce", secret["nonce"].(string))
+		w.Header().Set("X-Whisper-Header", secret["header"].(string))
+		w.Header().Set("X-Whisper-Encrypted-Metadata", secret["encryptedMetadata"].(string))
+		w.Header().Set("X-Whisper-Is-File", "true")
+		w.Write(secret["file"].([]byte))
+		return
 	}
-	if ef, ok := secret["encryptedFile"]; ok {
-		resp["encryptedFile"] = ef
-	}
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(map[string]any{
+		"encryptedData": secret["encryptedData"],
+		"nonce":         secret["nonce"],
+		"header":        secret["header"],
+		"isFile":        false,
+	})
 }
 
 func TestNewBaseURLValidation(t *testing.T) {

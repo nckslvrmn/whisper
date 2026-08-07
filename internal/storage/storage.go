@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"log"
 
 	"github.com/nckslvrmn/whisper/internal/config"
@@ -48,6 +50,20 @@ func Initialize() error {
 	}
 
 	return nil
+}
+
+// Close releases backends that hold long-lived resources: the SQLite handle
+// and its janitor, the Firestore client, the GCS client.
+func Close() error {
+	var errs []error
+	for _, store := range []any{secretStore, fileStore} {
+		if closer, ok := store.(io.Closer); ok {
+			if err := closer.Close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func GetSecretStore() types.SecretStore {

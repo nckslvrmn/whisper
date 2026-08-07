@@ -1,7 +1,9 @@
 package local
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -34,53 +36,53 @@ func NewLocalFileStore(dataDir string) storagetypes.FileStore {
 	}
 }
 
-func (l *LocalFileStore) StoreEncryptedFile(secretId string, data []byte) error {
-	if !isValidSecretId(secretId) {
+func (l *LocalFileStore) StoreEncryptedFile(ctx context.Context, id string, r io.Reader) error {
+	if !isValidSecretId(id) {
 		return fmt.Errorf("invalid secretId")
 	}
 
-	filePath := filepath.Join(l.dataDir, secretId)
+	f, err := os.OpenFile(filepath.Join(l.dataDir, id), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to store encrypted file: %w", err)
+	}
 
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
+	if _, err := io.Copy(f, r); err != nil {
+		f.Close()
+		return fmt.Errorf("failed to store encrypted file: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
 		return fmt.Errorf("failed to store encrypted file: %w", err)
 	}
 
 	return nil
 }
 
-func (l *LocalFileStore) GetEncryptedFile(secretId string) ([]byte, error) {
-	if !isValidSecretId(secretId) {
+func (l *LocalFileStore) GetEncryptedFile(ctx context.Context, id string) (io.ReadCloser, error) {
+	if !isValidSecretId(id) {
 		return nil, fmt.Errorf("invalid secretId")
 	}
 
-	filePath := filepath.Join(l.dataDir, secretId)
-
-	data, err := os.ReadFile(filePath)
+	f, err := os.Open(filepath.Join(l.dataDir, id))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("file not found")
+			return nil, storagetypes.ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to read encrypted file: %w", err)
 	}
 
-	return data, nil
+	return storagetypes.DecodeStoredFile(f)
 }
 
-func (l *LocalFileStore) DeleteEncryptedFile(secretId string) error {
-	if !isValidSecretId(secretId) {
+func (l *LocalFileStore) DeleteEncryptedFile(ctx context.Context, id string) error {
+	if !isValidSecretId(id) {
 		return fmt.Errorf("invalid secretId")
 	}
 
-	filePath := filepath.Join(l.dataDir, secretId)
-
-	err := os.Remove(filePath)
+	err := os.Remove(filepath.Join(l.dataDir, id))
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete encrypted file: %w", err)
 	}
 
 	return nil
-}
-
-func (l *LocalFileStore) DeleteFile(secretId string) error {
-	return l.DeleteEncryptedFile(secretId)
 }

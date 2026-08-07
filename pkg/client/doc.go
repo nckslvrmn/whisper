@@ -33,6 +33,14 @@
 // separate nonce (prepended to the metadata ciphertext) to avoid nonce reuse
 // under the same key.
 //
+// # File transport
+//
+// File secrets travel as raw bytes, never base64. StoreFile uploads
+// multipart/form-data with a JSON "payload" part followed by the ciphertext as
+// the "file" part. Retrieve receives an application/octet-stream body with the
+// nonce, header, and encrypted metadata in X-Whisper-* response headers. Text
+// secrets stay JSON in both directions.
+//
 // A runnable end-to-end example lives at pkg/client/examples/basic; run it
 // with `go run ./pkg/client/examples/basic -url https://whisper.example.com`.
 //
@@ -41,4 +49,6 @@
 // EncryptText, EncryptFile, DecryptText, DecryptFile, and HashPassword
 // operate purely on bytes and can be used without the HTTP client, for
 // example to encrypt payloads offline for delivery by other transport.
+// FilePayload.EncryptedFile and DecryptResponse.EncryptedFile hold raw
+// ciphertext rather than a base64 string.
 package client

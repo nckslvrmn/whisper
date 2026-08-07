@@ -1,8 +1,8 @@
 package gcp
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -64,13 +64,10 @@ func NewGCSStore() storagetypes.FileStore {
 	}
 }
 
-func (g *GCSStore) StoreEncryptedFile(secret_id string, data []byte) error {
-	ctx := context.Background()
+func (g *GCSStore) StoreEncryptedFile(ctx context.Context, id string, r io.Reader) error {
+	writer := g.bucket.Object(id + ".enc").NewWriter(ctx)
 
-	obj := g.bucket.Object(secret_id + ".enc")
-	writer := obj.NewWriter(ctx)
-
-	if _, err := io.Copy(writer, bytes.NewReader(data)); err != nil {
+	if _, err := io.Copy(writer, r); err != nil {
 		writer.Close()
 		return fmt.Errorf("failed to write encrypted file to GCS: %w", err)
 	}
@@ -82,30 +79,21 @@ func (g *GCSStore) StoreEncryptedFile(secret_id string, data []byte) error {
 	return nil
 }
 
-func (g *GCSStore) GetEncryptedFile(secret_id string) ([]byte, error) {
-	ctx := context.Background()
-
-	obj := g.bucket.Object(secret_id + ".enc")
-	reader, err := obj.NewReader(ctx)
+func (g *GCSStore) GetEncryptedFile(ctx context.Context, id string) (io.ReadCloser, error) {
+	reader, err := g.bucket.Object(id + ".enc").NewReader(ctx)
 	if err != nil {
+		if errors.Is(err, storage.ErrObjectNotExist) {
+			return nil, storagetypes.ErrNotFound
+		}
 		return nil, fmt.Errorf("failed to read encrypted file from GCS: %w", err)
 	}
-	defer reader.Close()
 
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read encrypted file content from GCS: %w", err)
-	}
-
-	return data, nil
+	return storagetypes.DecodeStoredFile(reader)
 }
 
-func (g *GCSStore) DeleteEncryptedFile(secret_id string) error {
-	ctx := context.Background()
-
-	obj := g.bucket.Object(secret_id + ".enc")
-	if err := obj.Delete(ctx); err != nil {
-		if err == storage.ErrObjectNotExist {
+func (g *GCSStore) DeleteEncryptedFile(ctx context.Context, id string) error {
+	if err := g.bucket.Object(id + ".enc").Delete(ctx); err != nil {
+		if errors.Is(err, storage.ErrObjectNotExist) {
 			return nil
 		}
 		return fmt.Errorf("failed to delete encrypted file from GCS: %w", err)
@@ -114,6 +102,9 @@ func (g *GCSStore) DeleteEncryptedFile(secret_id string) error {
 	return nil
 }
 
-func (g *GCSStore) DeleteFile(secret_id string) error {
-	return g.DeleteEncryptedFile(secret_id)
+func (g *GCSStore) Close() error {
+	if g.client == nil {
+		return nil
+	}
+	return g.client.Close()
 }
