@@ -15,9 +15,10 @@
 - **Argon2id + HKDF key splitting.** A memory-hard KDF with separate encryption and authentication keys derived via HKDF-SHA256.
 - **Salt-in-passphrase architecture.** The Argon2 salt is embedded in the display passphrase and never stored or transmitted to the server, so the server cannot mount an offline brute-force attack even if it's compromised.
 - **Self-destructing secrets.** Configurable view limits and TTL expiry.
-- **Text and file support.** Share passwords, API keys, documents, or any sensitive file. The default limit is 256 MB, configurable via `MAX_FILE_SIZE_MB`.
+- **Text and file support.** Share passwords, API keys, documents, or any sensitive file. The default limit is 256 MB, configurable via `MAX_FILE_SIZE_MB`. Files stream as raw ciphertext in both directions, so the limit is the real file size and server memory does not scale with it.
 - **Multi-storage backend.** AWS (DynamoDB + S3), Google Cloud (Firestore + GCS), or local SQLite + filesystem.
 - **Zero server trust.** The server stores only ciphertext, nonce, header, and a 64-hex-char HKDF-derived auth key. Plaintext and encryption keys never leave the browser.
+- **Off-thread crypto.** Argon2id and XChaCha20 run in a module Web Worker, so the UI stays responsive during key derivation.
 - **Hardened CSP.** No `unsafe-inline` for scripts, WASM permitted via `wasm-unsafe-eval` only, and SRI hashes on all CDN resources. Inline styles are still allowed (`style-src 'unsafe-inline'`).
 
 ## Quick Start
@@ -107,12 +108,14 @@ Required IAM permissions:
     },
     {
       "Effect": "Allow",
-      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:AbortMultipartUpload"],
       "Resource": "arn:aws:s3:::YOUR_BUCKET_NAME/*"
     }
   ]
 }
 ```
+
+Files are uploaded as a stream, so anything over the 5 MB part size goes up as a multipart upload. `s3:PutObject` covers the upload parts themselves, and `s3:AbortMultipartUpload` lets a failed upload clean up after itself instead of leaving parts to be billed.
 
 ### Google Cloud
 
@@ -124,14 +127,14 @@ Required roles: `roles/datastore.user`, `roles/storage.objectAdmin`.
 
 ### WASM Module (Rust)
 
-The crypto module lives in `wasm/src/lib.rs` and is compiled to WASM via `wasm-bindgen`. It exports five functions to JavaScript:
+The crypto module lives in `wasm/src/lib.rs` and is compiled to WASM via `wasm-bindgen`. It exports five functions to JavaScript, all called from `web/static/worker.js` rather than the main thread:
 
 | Export | Purpose |
 |--------|---------|
 | `encryptText(text, viewCount?, ttlDays?, ttlTimestamp?)` | Encrypt a text secret |
-| `encryptFile(fileDataB64, fileName, fileType, viewCount?, ttlDays?, ttlTimestamp?)` | Encrypt a file plus metadata |
+| `encryptFile(fileData, fileName, fileType, viewCount?, ttlDays?, ttlTimestamp?)` | Encrypt a file plus metadata. `fileData` is a `Uint8Array` and `encryptedFile` comes back as one |
 | `decryptText(encryptedDataB64, passphrase, nonceB64, saltB64, headerB64)` | Decrypt a text secret |
-| `decryptFile(encryptedFileB64, encryptedMetadataB64, passphrase, nonceB64, saltB64, headerB64)` | Decrypt a file plus metadata |
+| `decryptFile(encryptedFile, encryptedMetadataB64, passphrase, nonceB64, saltB64, headerB64)` | Decrypt a file plus metadata. `encryptedFile` and the returned `fileData` are `Uint8Array` |
 | `hashPassword(password, saltB64)` | Derive the auth key for a given passphrase and salt |
 
 ### Key Derivation
@@ -173,24 +176,28 @@ When decrypting, the browser splits the display passphrase at character 24 to re
 
 ### What the Server Stores
 
+The secret record is raw JSON, stored as-is:
+
 ```
 {
   "passwordHash":      "<64-char lowercase hex, the HKDF auth_key>",
-  "encryptedData":     "<URL-safe base64 ciphertext>",
+  "encryptedData":     "<URL-safe base64 ciphertext, text secrets only>",
   "nonce":             "<URL-safe base64, 24 bytes>",
   "header":            "<URL-safe base64, 16 bytes>",
-  "encryptedMetadata": "<base64, for file secrets only>",
-  "isFile":            true | false,
-  "viewCount":         1 to 10   (optional),
-  "ttl":               <unix timestamp> (optional)
+  "encryptedMetadata": "<URL-safe base64, file secrets only>",
+  "isFile":            true | false
 }
 ```
+
+`viewCount` and `ttl` live only as native columns, attributes, or fields (`view_count` and `ttl`), never inside the JSON. An absent or zero `view_count` means unlimited views. The payload is immutable after creation: view consumption only touches the native counter, atomically, and the record is deleted when the counter hits zero.
+
+Encrypted files are stored as raw ciphertext bytes in S3, GCS, or the local filesystem. Records and files written by older versions are base64 and are still read transparently.
 
 The server never stores or returns the salt, the passphrase, or any key material.
 
 ## API Reference
 
-All endpoints accept and return JSON. Rate limit: 100 requests/IP. Body limit: `MAX_FILE_SIZE_MB` (default 256 MB). Note that base64-encoded payloads are about 1.33x the raw byte size, so the effective plaintext limit is lower.
+Text endpoints accept and return JSON. File upload is `multipart/form-data` and file download is `application/octet-stream`, so ciphertext is never base64 on the wire and `MAX_FILE_SIZE_MB` is the effective file size limit. Rate limit: 100 requests/IP. Body limit: `MAX_FILE_SIZE_MB` (default 256 MB).
 
 ### POST /encrypt
 
@@ -219,14 +226,14 @@ Store an encrypted text secret.
 
 ### POST /encrypt_file
 
-Store an encrypted file secret. Same fields as `/encrypt`, plus:
+Store an encrypted file secret. `Content-Type: multipart/form-data` with exactly two parts, in this order:
 
-```json
-{
-  "encryptedFile":     "<standard base64 encrypted file bytes>",
-  "encryptedMetadata": "<standard base64, meta_nonce || encrypted JSON metadata>"
-}
-```
+| Part | Content |
+|------|---------|
+| `payload` | JSON: `passwordHash`, `encryptedMetadata` (URL-safe base64, `meta_nonce \|\| encrypted JSON metadata`), `nonce`, `header`, and optionally `viewCount` and `ttl` |
+| `file` | Raw encrypted file bytes, streamed straight to storage |
+
+Missing parts, parts out of order, extra parts, an empty `file` part, or a `file` part over the size limit are all rejected with `400`. The response matches `/encrypt`.
 
 ### POST /decrypt
 
@@ -254,18 +261,22 @@ Retrieve and consume an encrypted secret.
 
 **Response** (file secret)
 
-```json
-{
-  "encryptedData":     "<url-safe base64>",
-  "encryptedFile":     "<standard base64 encrypted file bytes>",
-  "encryptedMetadata": "<standard base64, meta_nonce || encrypted metadata>",
-  "nonce":             "<url-safe base64>",
-  "header":            "<url-safe base64>",
-  "isFile":            true
-}
-```
+`Content-Type: application/octet-stream`. The body is the raw encrypted file, streamed from storage. The small fields travel in headers:
 
-The server validates `passwordHash` with a constant-time comparison. Each successful `/decrypt` call decrements the view counter, and when it reaches zero the secret is deleted. If `ttl` has expired the secret is also deleted and `404` is returned.
+| Header | Content |
+|--------|---------|
+| `X-Whisper-Is-File` | `true` |
+| `X-Whisper-Nonce` | URL-safe base64, 24 bytes |
+| `X-Whisper-Header` | URL-safe base64, 16 bytes |
+| `X-Whisper-Encrypted-Metadata` | URL-safe base64, `meta_nonce \|\| encrypted metadata` |
+
+The server validates `passwordHash` with a constant-time comparison. Each successful `/decrypt` call atomically decrements the view counter, and when it reaches zero the record and any encrypted file are deleted. If `ttl` has expired the secret is also deleted and `404` is returned.
+
+The view is only consumed after validation passes and, for file secrets, after the file reader is open, so a storage failure returns `500` without burning a view.
+
+### GET /healthz
+
+Liveness probe. Returns `200 {"status":"ok"}` without touching storage. The container `HEALTHCHECK` runs `/whisper -healthcheck`, which probes this endpoint on `$PORT` and exits non-zero when it fails.
 
 ## Using the API with an SDK
 
@@ -288,6 +299,7 @@ style-src   'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cl
 font-src    'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com;
 img-src     'self' data:;
 connect-src 'self' https://cdnjs.cloudflare.com;
+worker-src  'self';
 frame-ancestors 'none';
 base-uri    'self';
 object-src  'none';
@@ -303,17 +315,26 @@ object-src  'none';
 - **Referrer-Policy**: `strict-origin-when-cross-origin`
 - **Rate limiting**: 100 requests/IP (in-memory)
 - **Body limit**: `MAX_FILE_SIZE_MB` per request (default 256 MB)
-- **Request timeout**: 30 seconds
+- **Request timeout**: 30 seconds, propagated into every storage call
 - **Constant-time comparison**: `passwordHash` comparison uses `crypto/subtle`
 - **SRI hashes**: All Bootstrap and Font Awesome CDN resources are pinned with `integrity=` hashes
 
 ### Known Limitations
 
-- Argon2 runs synchronously on the browser's main thread, so there's a ~1 to 2 second UI pause during key derivation.
-- View-count decrement has a TOCTOU race. There's no atomic CAS in the storage layer yet, so concurrent reads of a one-view secret can over-consume it.
-- The whole file is held in browser memory and base64-encoded before encryption, so a very large file under the 256 MB default can use several times that in browser memory and request size.
+- The whole file is held in browser memory during encryption, so a very large file under the 256 MB default needs a couple of multiples of that in browser memory. Chunked client-side encryption would fix it and is not implemented.
+- A client that disconnects mid-download still spends its view. Opening the file reader before consuming the view covers the storage-failure case, but not a dead connection.
+- Rate limiting is in-memory per instance, so it does not coordinate across replicas.
 
 ## Contributing
+
+Run the suites before opening a PR:
+
+```bash
+CGO_ENABLED=1 go test -race ./...   # server, storage, SDK, end-to-end
+cd wasm && cargo test --lib          # Rust crypto module
+```
+
+`crypto_vectors.json` in the repo root holds known-answer vectors shared by the Go SDK and the Rust module, so protocol drift between them fails one of the two suites. Regenerate it with `go test ./pkg/client -run TestCryptoVectors -update` when the crypto changes on purpose.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)

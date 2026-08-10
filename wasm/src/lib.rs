@@ -1,6 +1,6 @@
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::Engine;
-use base64::engine::general_purpose::{STANDARD, URL_SAFE};
+use base64::engine::general_purpose::URL_SAFE;
 use chacha20poly1305::aead::{Aead, Payload};
 use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
 use hkdf::Hkdf;
@@ -213,18 +213,13 @@ pub fn encrypt_text(
 
 #[wasm_bindgen(js_name = "encryptFile")]
 pub fn encrypt_file(
-    file_data_b64: String,
+    file_data: &[u8],
     file_name: String,
     file_type: String,
     view_count: Option<String>,
     ttl_days: Option<String>,
     ttl_timestamp: Option<String>,
 ) -> JsValue {
-    let file_data = match STANDARD.decode(&file_data_b64) {
-        Ok(d) => d,
-        Err(e) => return err_js(&format!("Invalid file data: {e}")),
-    };
-
     let passphrase = rand_string(PASSPHRASE_LENGTH);
     let file_nonce = rand_bytes(NONCE_SIZE);
     let salt = rand_bytes(SALT_SIZE);
@@ -236,7 +231,7 @@ pub fn encrypt_file(
         ttl_days.as_ref().map(|days| sanitize_ttl_days(days))
     };
 
-    let encrypted_file = match xchacha_encrypt(&passphrase, &file_nonce, &salt, &header, &file_data)
+    let encrypted_file = match xchacha_encrypt(&passphrase, &file_nonce, &salt, &header, file_data)
     {
         Ok(d) => d,
         Err(e) => return err_js(&e),
@@ -274,8 +269,15 @@ pub fn encrypt_file(
     s("nonce", &b64e(&file_nonce));
     s("header", &b64e(&header));
     s("passwordHash", &password_hash);
-    s("encryptedFile", &b64e(&encrypted_file));
     s("encryptedMetadata", &b64e(&encrypted_metadata));
+    // Bytes, not base64: this goes straight into a Blob for upload, and a
+    // string would add two full-file copies.
+    js_sys::Reflect::set(
+        &obj,
+        &JsValue::from_str("encryptedFile"),
+        &js_sys::Uint8Array::from(encrypted_file.as_slice()),
+    )
+    .unwrap();
     if let Some(t) = ttl {
         js_sys::Reflect::set(&obj, &JsValue::from_str("ttl"), &JsValue::from_f64(t)).unwrap();
     }
@@ -338,17 +340,13 @@ pub fn decrypt_text(
 
 #[wasm_bindgen(js_name = "decryptFile")]
 pub fn decrypt_file(
-    encrypted_file_b64: String,
+    enc_file: &[u8],
     encrypted_metadata_b64: String,
     passphrase: String,
     nonce_b64: String,
     salt_b64: String,
     header_b64: String,
 ) -> JsValue {
-    let enc_file = match b64d(&encrypted_file_b64) {
-        Ok(d) => d,
-        Err(_) => return err_js("Invalid encrypted file"),
-    };
     let enc_meta_blob = match b64d(&encrypted_metadata_b64) {
         Ok(d) => d,
         Err(_) => return err_js("Invalid encrypted metadata"),
@@ -387,22 +385,26 @@ pub fn decrypt_file(
         Err(_) => return err_js("Invalid metadata"),
     };
 
-    let file_data = match xchacha_decrypt(&passphrase, &nonce, &salt, &header, &enc_file) {
+    let file_data = match xchacha_decrypt(&passphrase, &nonce, &salt, &header, enc_file) {
         Ok(d) => d,
         Err(e) => return err_js(&format!("File decryption failed: {e}")),
     };
 
     let file_name = metadata["file_name"].as_str().unwrap_or("").to_string();
     let file_type = metadata["file_type"].as_str().unwrap_or("").to_string();
-    let file_data_b64 = STANDARD.encode(&file_data);
 
     let obj = js_sys::Object::new();
     let s = |k: &str, v: &str| {
         js_sys::Reflect::set(&obj, &JsValue::from_str(k), &JsValue::from_str(v)).unwrap();
     };
-    s("fileData", &file_data_b64);
     s("fileName", &file_name);
     s("fileType", &file_type);
+    js_sys::Reflect::set(
+        &obj,
+        &JsValue::from_str("fileData"),
+        &js_sys::Uint8Array::from(file_data.as_slice()),
+    )
+    .unwrap();
     obj.into()
 }
 

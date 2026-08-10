@@ -3,21 +3,21 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/nckslvrmn/whisper/internal/config"
+	echo "github.com/labstack/echo/v4"
 )
 
-// storeSecret pre-populates the mock store with a secret JSON blob.
-func storeSecret(t *testing.T, ss *mockSecretStore, secretId string, data map[string]any) {
+func seedSecret(t *testing.T, ss *mockSecretStore, secretId string, payload SecretPayload, ttl *int64, viewCount *int) {
 	t.Helper()
-	b, err := json.Marshal(data)
+	b, err := json.Marshal(payload)
 	if err != nil {
-		t.Fatalf("storeSecret marshal: %v", err)
+		t.Fatalf("seedSecret marshal: %v", err)
 	}
-	if err := ss.StoreSecretRaw(secretId, b, nil, nil); err != nil {
-		t.Fatalf("storeSecret: %v", err)
+	if err := ss.StoreSecret(t.Context(), secretId, b, ttl, viewCount); err != nil {
+		t.Fatalf("seedSecret: %v", err)
 	}
 }
 
@@ -30,25 +30,35 @@ func decryptBody(secretId, passwordHash string) string {
 	return string(b)
 }
 
-// validSecretData returns a minimal valid secret map for the given hash.
-func validSecretData(hash string) map[string]any {
-	return map[string]any{
-		"passwordHash":  hash,
-		"encryptedData": "dGVzdA==",
-		"nonce":         "bm9uY2U=",
-		"header":        "aGVhZGVy",
-		"isFile":        false,
+func textPayload(hash string) SecretPayload {
+	return SecretPayload{
+		PasswordHash:  hash,
+		EncryptedData: "dGVzdA==",
+		Nonce:         "bm9uY2U=",
+		Header:        "aGVhZGVy",
 	}
 }
 
-// --- Decrypt happy path ---
+func filePayload(hash string) SecretPayload {
+	return SecretPayload{
+		PasswordHash:      hash,
+		EncryptedMetadata: "bWV0YQ==",
+		Nonce:             "bm9uY2U=",
+		Header:            "aGVhZGVy",
+		IsFile:            true,
+	}
+}
+
+func ptrInt(n int) *int       { return &n }
+func ptrInt64(n int64) *int64 { return &n }
+
+// --- text secrets ---
 
 func TestDecrypt_Success(t *testing.T) {
 	ss, _ := setupMockStores()
-	config.AdvancedFeatures = true
 
 	const id = "abcdefghijklmnop"
-	storeSecret(t, ss, id, validSecretData(validHash))
+	seedSecret(t, ss, id, textPayload(validHash), nil, nil)
 
 	c, rec := newEchoContext(decryptBody(id, validHash))
 	if err := Decrypt(c); err != nil {
@@ -69,98 +79,115 @@ func TestDecrypt_Success(t *testing.T) {
 
 func TestDecrypt_SecretDeletedAfterSingleView(t *testing.T) {
 	ss, _ := setupMockStores()
-	config.AdvancedFeatures = true
 
 	const id = "abcdefghijklmno1"
-	vc := 1
-	data := validSecretData(validHash)
-	data["viewCount"] = vc
-	storeSecret(t, ss, id, data)
+	seedSecret(t, ss, id, textPayload(validHash), nil, ptrInt(1))
 
 	c, _ := newEchoContext(decryptBody(id, validHash))
 	if err := Decrypt(c); err != nil {
 		t.Fatalf("first decrypt: %v", err)
 	}
 
-	// Second attempt must return 404
 	c2, _ := newEchoContext(decryptBody(id, validHash))
-	err := Decrypt(c2)
-	assertHTTPError(t, err, http.StatusNotFound)
+	assertHTTPError(t, Decrypt(c2), http.StatusNotFound)
 }
 
 func TestDecrypt_ViewCountDecremented(t *testing.T) {
 	ss, _ := setupMockStores()
-	config.AdvancedFeatures = true
 
 	const id = "abcdefghijklmno2"
-	data := validSecretData(validHash)
-	data["viewCount"] = float64(3)
-	storeSecret(t, ss, id, data)
+	seedSecret(t, ss, id, textPayload(validHash), nil, ptrInt(3))
 
-	// First view
 	c, _ := newEchoContext(decryptBody(id, validHash))
 	if err := Decrypt(c); err != nil {
 		t.Fatalf("first decrypt: %v", err)
 	}
 
-	// Secret should still exist with viewCount=2
-	raw, err := ss.GetSecretRaw(id)
-	if err != nil {
-		t.Fatalf("secret should still exist: %v", err)
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	stored, ok := ss.secrets[id]
+	if !ok {
+		t.Fatal("secret should still exist")
 	}
-	var updated map[string]any
-	json.Unmarshal(raw, &updated)
-	if updated["viewCount"] != float64(2) {
-		t.Errorf("viewCount = %v, want 2", updated["viewCount"])
+	if stored.viewCount == nil || *stored.viewCount != 2 {
+		t.Errorf("viewCount = %v, want 2", stored.viewCount)
 	}
 }
 
-func TestDecrypt_NoViewCount_SecretPersists(t *testing.T) {
+func TestDecrypt_UnlimitedViews_SecretPersists(t *testing.T) {
 	ss, _ := setupMockStores()
-	config.AdvancedFeatures = true
 
 	const id = "abcdefghijklmno3"
-	storeSecret(t, ss, id, validSecretData(validHash))
+	seedSecret(t, ss, id, textPayload(validHash), nil, nil)
 
-	c, _ := newEchoContext(decryptBody(id, validHash))
-	if err := Decrypt(c); err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	for i := 0; i < 3; i++ {
+		c, _ := newEchoContext(decryptBody(id, validHash))
+		if err := Decrypt(c); err != nil {
+			t.Fatalf("decrypt %d: %v", i, err)
+		}
 	}
 
-	// Without viewCount, secret should still be in store
-	if _, err := ss.GetSecretRaw(id); err != nil {
-		t.Error("secret should persist when no viewCount is set")
+	if !ss.has(id) {
+		t.Error("secret should persist when views are unlimited")
 	}
 }
 
-// --- Decrypt: TTL enforcement ---
-
-func TestDecrypt_ExpiredTTL_Returns404(t *testing.T) {
+func TestDecrypt_ConcurrentLastView_OneWinner(t *testing.T) {
 	ss, _ := setupMockStores()
 
 	const id = "abcdefghijklmno4"
-	data := validSecretData(validHash)
-	data["ttl"] = float64(time.Now().Add(-1 * time.Hour).Unix())
-	storeSecret(t, ss, id, data)
+	seedSecret(t, ss, id, textPayload(validHash), nil, ptrInt(1))
 
-	c, _ := newEchoContext(decryptBody(id, validHash))
-	err := Decrypt(c)
-	assertHTTPError(t, err, http.StatusNotFound)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var ok, notFound int
+
+	start := make(chan struct{})
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c, rec := newEchoContext(decryptBody(id, validHash))
+			<-start
+			err := Decrypt(c)
+
+			mu.Lock()
+			defer mu.Unlock()
+			switch {
+			case err == nil && rec.Code == http.StatusOK:
+				ok++
+			case err != nil && err.(*echo.HTTPError).Code == http.StatusNotFound:
+				notFound++
+			default:
+				t.Errorf("unexpected result: code = %d, err = %v", rec.Code, err)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	if ok != 1 || notFound != 1 {
+		t.Errorf("got %d success and %d not-found, want exactly 1 of each", ok, notFound)
+	}
 }
 
-func TestDecrypt_ExpiredSecret_DeletedFromStore(t *testing.T) {
-	ss, _ := setupMockStores()
+// --- TTL enforcement ---
+
+func TestDecrypt_ExpiredTTL_DeletesAnd404s(t *testing.T) {
+	ss, fs := setupMockStores()
 
 	const id = "abcdefghijklmno5"
-	data := validSecretData(validHash)
-	data["ttl"] = float64(time.Now().Add(-1 * time.Hour).Unix())
-	storeSecret(t, ss, id, data)
+	seedSecret(t, ss, id, filePayload(validHash), ptrInt64(time.Now().Add(-time.Hour).Unix()), nil)
+	fs.put(id, []byte("filedata"))
 
 	c, _ := newEchoContext(decryptBody(id, validHash))
-	Decrypt(c) // ignore error — we expect 404
+	assertHTTPError(t, Decrypt(c), http.StatusNotFound)
 
-	if _, err := ss.GetSecretRaw(id); err == nil {
-		t.Error("expired secret should be deleted from store")
+	if ss.has(id) {
+		t.Error("expired secret should be deleted from the store")
+	}
+	if fs.has(id) {
+		t.Error("expired file should be deleted from the file store")
 	}
 }
 
@@ -168,9 +195,7 @@ func TestDecrypt_ValidTTL_Succeeds(t *testing.T) {
 	ss, _ := setupMockStores()
 
 	const id = "abcdefghijklmno6"
-	data := validSecretData(validHash)
-	data["ttl"] = float64(time.Now().Add(1 * time.Hour).Unix())
-	storeSecret(t, ss, id, data)
+	seedSecret(t, ss, id, textPayload(validHash), ptrInt64(time.Now().Add(time.Hour).Unix()), nil)
 
 	c, rec := newEchoContext(decryptBody(id, validHash))
 	if err := Decrypt(c); err != nil {
@@ -181,91 +206,75 @@ func TestDecrypt_ValidTTL_Succeeds(t *testing.T) {
 	}
 }
 
-// --- Decrypt: validation errors ---
+// --- validation ---
 
-func TestDecrypt_MissingSecretID(t *testing.T) {
-	setupMockStores()
+func TestDecrypt_MalformedRequests_400BeforeStorage(t *testing.T) {
+	cases := map[string]string{
+		"missing secret_id":       `{"passwordHash":"` + validHash + `"}`,
+		"invalid secret_id":       `{"secret_id":"invalid!","passwordHash":"` + validHash + `"}`,
+		"missing password hash":   `{"secret_id":"abcdefghijklmnop"}`,
+		"password hash too short": `{"secret_id":"abcdefghijklmnop","passwordHash":"tooshort"}`,
+		"invalid json":            "{invalid json",
+	}
 
-	c, _ := newEchoContext(`{"passwordHash":"` + validHash + `"}`)
-	err := Decrypt(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
-}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			ss, fs := setupMockStores()
+			c, _ := newEchoContext(body)
+			assertHTTPError(t, Decrypt(c), http.StatusBadRequest)
 
-func TestDecrypt_InvalidSecretIDFormat(t *testing.T) {
-	setupMockStores()
-
-	c, _ := newEchoContext(`{"secret_id":"invalid!","passwordHash":"` + validHash + `"}`)
-	err := Decrypt(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
+			ss.mu.Lock()
+			defer ss.mu.Unlock()
+			fs.mu.Lock()
+			defer fs.mu.Unlock()
+			if len(ss.calls) != 0 || len(fs.calls) != 0 {
+				t.Errorf("storage was touched: secrets %v, files %v", ss.calls, fs.calls)
+			}
+		})
+	}
 }
 
 func TestDecrypt_SecretNotFound(t *testing.T) {
 	setupMockStores()
 
 	c, _ := newEchoContext(decryptBody("abcdefghijklmnop", validHash))
-	err := Decrypt(c)
-	assertHTTPError(t, err, http.StatusNotFound)
+	assertHTTPError(t, Decrypt(c), http.StatusNotFound)
 }
 
-func TestDecrypt_MissingPasswordHash_Returns404(t *testing.T) {
+func TestDecrypt_WrongPasswordHash_404AndViewIntact(t *testing.T) {
 	ss, _ := setupMockStores()
 
 	const id = "abcdefghijklmno7"
-	storeSecret(t, ss, id, validSecretData(validHash))
-
-	c, _ := newEchoContext(`{"secret_id":"` + id + `"}`)
-	err := Decrypt(c)
-	// handler returns 404 (not 400) when passwordHash is empty
-	assertHTTPError(t, err, http.StatusNotFound)
-}
-
-func TestDecrypt_InvalidPasswordHashFormat(t *testing.T) {
-	ss, _ := setupMockStores()
-
-	const id = "abcdefghijklmno8"
-	storeSecret(t, ss, id, validSecretData(validHash))
-
-	c, _ := newEchoContext(`{"secret_id":"` + id + `","passwordHash":"tooshort"}`)
-	err := Decrypt(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
-}
-
-func TestDecrypt_WrongPasswordHash_Returns404(t *testing.T) {
-	ss, _ := setupMockStores()
-
-	const id = "abcdefghijklmno9"
-	storeSecret(t, ss, id, validSecretData(validHash))
+	seedSecret(t, ss, id, textPayload(validHash), nil, ptrInt(1))
 
 	wrongHash := "0000000000000000000000000000000000000000000000000000000000000000"
 	c, _ := newEchoContext(decryptBody(id, wrongHash))
-	err := Decrypt(c)
-	assertHTTPError(t, err, http.StatusNotFound)
+	assertHTTPError(t, Decrypt(c), http.StatusNotFound)
+
+	if ss.called("consume") {
+		t.Error("a wrong passphrase must not consume a view")
+	}
+	if !ss.has(id) {
+		t.Error("secret should still exist after a wrong passphrase")
+	}
 }
 
-func TestDecrypt_InvalidJSON(t *testing.T) {
-	setupMockStores()
+func TestDecrypt_StoreReadFailure_Returns500(t *testing.T) {
+	ss, _ := setupMockStores()
+	ss.failOp = "get"
 
-	c, _ := newEchoContext("{invalid json")
-	err := Decrypt(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
+	c, _ := newEchoContext(decryptBody("abcdefghijklmno8", validHash))
+	assertHTTPError(t, Decrypt(c), http.StatusInternalServerError)
 }
 
-// --- Decrypt: file secrets ---
+// --- file secrets ---
 
-func TestDecrypt_FileSecret_ReturnsEncryptedFile(t *testing.T) {
+func TestDecrypt_FileSecret_StreamsBinary(t *testing.T) {
 	ss, fs := setupMockStores()
 
 	const id = "abcdefghijklmnoa"
-	data := map[string]any{
-		"passwordHash":      validHash,
-		"encryptedData":     "",
-		"encryptedMetadata": "bWV0YQ==",
-		"nonce":             "bm9uY2U=",
-		"header":            "aGVhZGVy",
-		"isFile":            true,
-	}
-	storeSecret(t, ss, id, data)
-	fs.files[id] = []byte("encryptedfilecontent")
+	seedSecret(t, ss, id, filePayload(validHash), nil, nil)
+	fs.put(id, []byte{0x00, 0xFF, 0x10, 0x20})
 
 	c, rec := newEchoContext(decryptBody(id, validHash))
 	if err := Decrypt(c); err != nil {
@@ -274,13 +283,20 @@ func TestDecrypt_FileSecret_ReturnsEncryptedFile(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", rec.Code)
 	}
-
-	resp := decodeResponse(rec)
-	if resp["isFile"] != true {
-		t.Errorf("isFile = %v, want true", resp["isFile"])
+	if got := rec.Header().Get(echo.HeaderContentType); got != echo.MIMEOctetStream {
+		t.Errorf("content type = %q, want %q", got, echo.MIMEOctetStream)
 	}
-	if resp["encryptedFile"] != "encryptedfilecontent" {
-		t.Errorf("encryptedFile = %v", resp["encryptedFile"])
+	if got := rec.Header().Get("X-Whisper-Encrypted-Metadata"); got != "bWV0YQ==" {
+		t.Errorf("metadata header = %q", got)
+	}
+	if got := rec.Header().Get("X-Whisper-Nonce"); got != "bm9uY2U=" {
+		t.Errorf("nonce header = %q", got)
+	}
+	if got := rec.Header().Get("X-Whisper-Header"); got != "aGVhZGVy" {
+		t.Errorf("header header = %q", got)
+	}
+	if got := rec.Body.Bytes(); string(got) != string([]byte{0x00, 0xFF, 0x10, 0x20}) {
+		t.Errorf("body = %v, want the raw ciphertext", got)
 	}
 }
 
@@ -288,25 +304,54 @@ func TestDecrypt_FileSecret_DeletedOnLastView(t *testing.T) {
 	ss, fs := setupMockStores()
 
 	const id = "abcdefghijklmnob"
-	data := map[string]any{
-		"passwordHash": validHash,
-		"nonce":        "bm9uY2U=",
-		"header":       "aGVhZGVy",
-		"isFile":       true,
-		"viewCount":    float64(1),
-	}
-	storeSecret(t, ss, id, data)
-	fs.files[id] = []byte("filedata")
+	seedSecret(t, ss, id, filePayload(validHash), nil, ptrInt(1))
+	fs.put(id, []byte("filedata"))
 
 	c, _ := newEchoContext(decryptBody(id, validHash))
 	if err := Decrypt(c); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	fs.mu.Lock()
-	_, fileExists := fs.files[id]
-	fs.mu.Unlock()
-	if fileExists {
-		t.Error("file should be deleted after last view")
+	if fs.has(id) {
+		t.Error("file should be deleted after the last view")
+	}
+	if ss.has(id) {
+		t.Error("secret record should be deleted after the last view")
+	}
+}
+
+func TestDecrypt_FileReadFailure_500AndViewIntact(t *testing.T) {
+	ss, fs := setupMockStores()
+	fs.failOp = "get"
+
+	const id = "abcdefghijklmnoc"
+	seedSecret(t, ss, id, filePayload(validHash), nil, ptrInt(1))
+	fs.put(id, []byte("filedata"))
+
+	c, _ := newEchoContext(decryptBody(id, validHash))
+	assertHTTPError(t, Decrypt(c), http.StatusInternalServerError)
+
+	if ss.called("consume") {
+		t.Error("a file store failure must not consume a view")
+	}
+	if !ss.has(id) {
+		t.Error("secret should still exist after a file store failure")
+	}
+}
+
+func TestDecrypt_FileSecret_SurvivesUntilLastView(t *testing.T) {
+	ss, fs := setupMockStores()
+
+	const id = "abcdefghijklmnod"
+	seedSecret(t, ss, id, filePayload(validHash), nil, ptrInt(2))
+	fs.put(id, []byte("filedata"))
+
+	c, _ := newEchoContext(decryptBody(id, validHash))
+	if err := Decrypt(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !fs.has(id) {
+		t.Error("file should survive while views remain")
 	}
 }

@@ -1,0 +1,31 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+  settings:
+    errcheck:
+      # Close on a reader we are done with, and Rollback after a committed
+      # transaction, have no failure worth reporting.
+      exclude-functions:
+        - (io.Closer).Close
+        - (io.ReadCloser).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.Tx).Rollback
+        - (*mime/multipart.Part).Close
+        - (*os.File).Close
+        - (*net/http.Response).Body.Close
+        - (*compress/gzip.Writer).Close
+        - (*github.com/andybalholm/brotli.Writer).Close
+
+  exclusions:
+    rules:
+      - path: _test\.go$
+        linters:
+          - errcheck

@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	echo "github.com/labstack/echo/v4"
 
@@ -30,13 +31,13 @@ func TestValidateSecretID_Invalid(t *testing.T) {
 	cases := []string{
 		"",
 		"tooshort",
-		"toolongabcdefghij",       // 17 chars
-		"abcdef!hijklmnop",        // special char
-		"abcdef hijklmnop",        // space
-		"abcdef/hijklmnop",        // slash
-		"abcdef.hijklmnop",        // dot
+		"toolongabcdefghij", // 17 chars
+		"abcdef!hijklmnop",  // special char
+		"abcdef hijklmnop",  // space
+		"abcdef/hijklmnop",  // slash
+		"abcdef.hijklmnop",  // dot
 		"../etc/passwd/foo",
-		"abcdef\thijklmnop",       // tab
+		"abcdef\thijklmnop", // tab
 	}
 	for _, s := range cases {
 		if validateSecretID(s) {
@@ -81,118 +82,67 @@ func TestValidatePasswordHash_Invalid(t *testing.T) {
 	}
 }
 
-// --- E2EData.Validate ---
+// --- validateLimits ---
 
-func TestE2EDataValidate_MissingPasswordHash(t *testing.T) {
-	d := &E2EData{EncryptedData: "somedata"}
-	err := d.Validate(false)
-	if err == nil {
-		t.Fatal("expected error for missing passwordHash")
+func TestValidateLimits_AdvancedOff_RequiresBoth(t *testing.T) {
+	config.AdvancedFeatures = false
+	defer func() { config.AdvancedFeatures = true }()
+
+	ttl := time.Now().Add(time.Hour).Unix()
+	vc := 1
+
+	cases := map[string]struct {
+		viewCount *int
+		ttl       *int64
+	}{
+		"neither":         {nil, nil},
+		"only view count": {&vc, nil},
+		"only ttl":        {nil, &ttl},
 	}
-	he, ok := err.(*echo.HTTPError)
-	if !ok || he.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 HTTPError, got %v", err)
+	for name, c := range cases {
+		if err := validateLimits(c.viewCount, c.ttl); err == nil {
+			t.Errorf("%s: expected an error when advanced features are disabled", name)
+		}
+	}
+
+	if err := validateLimits(&vc, &ttl); err != nil {
+		t.Errorf("both set: unexpected error %v", err)
 	}
 }
 
-func TestE2EDataValidate_InvalidPasswordHashFormat(t *testing.T) {
-	d := &E2EData{PasswordHash: "tooshort", EncryptedData: "somedata"}
-	err := d.Validate(false)
-	if err == nil {
-		t.Fatal("expected error for invalid passwordHash")
+func TestValidateLimits_ViewCountRange(t *testing.T) {
+	config.AdvancedFeatures = true
+
+	for _, vc := range []int{0, 1, 5, 10} {
+		if err := validateLimits(&vc, nil); err != nil {
+			t.Errorf("viewCount %d: unexpected error %v", vc, err)
+		}
 	}
-	he, ok := err.(*echo.HTTPError)
-	if !ok || he.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 HTTPError, got %v", err)
+	for _, vc := range []int{-1, 11, 100} {
+		err := validateLimits(&vc, nil)
+		if err == nil {
+			t.Errorf("viewCount %d: expected an error", vc)
+		} else if he := err.(*echo.HTTPError); he.Code != http.StatusBadRequest {
+			t.Errorf("viewCount %d: status = %d, want 400", vc, he.Code)
+		}
 	}
 }
 
-func TestE2EDataValidate_Text_MissingEncryptedData(t *testing.T) {
-	d := &E2EData{PasswordHash: validHash}
-	err := d.Validate(false)
-	if err == nil {
-		t.Fatal("expected error for missing encryptedData")
-	}
-	he, ok := err.(*echo.HTTPError)
-	if !ok || he.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 HTTPError, got %v", err)
-	}
-}
+func TestValidateLimits_TTLRange(t *testing.T) {
+	config.AdvancedFeatures = true
 
-func TestE2EDataValidate_Text_ExceedsLimit(t *testing.T) {
-	d := &E2EData{
-		PasswordHash:  validHash,
-		EncryptedData: string(make([]byte, MaxTextSize()+1)),
+	past := time.Now().Add(-time.Minute).Unix()
+	if err := validateLimits(nil, &past); err == nil {
+		t.Error("expected an error for a TTL in the past")
 	}
-	err := d.Validate(false)
-	if err == nil {
-		t.Fatal("expected error for text size exceeding limit")
-	}
-	he, ok := err.(*echo.HTTPError)
-	if !ok || he.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 HTTPError, got %v", err)
-	}
-}
 
-func TestE2EDataValidate_Text_AtExactLimit(t *testing.T) {
-	d := &E2EData{
-		PasswordHash:  validHash,
-		EncryptedData: string(make([]byte, MaxTextSize())),
+	tooFar := time.Now().Add(31 * 24 * time.Hour).Unix()
+	if err := validateLimits(nil, &tooFar); err == nil {
+		t.Error("expected an error for a TTL beyond 30 days")
 	}
-	if err := d.Validate(false); err != nil {
-		t.Errorf("unexpected error at exact text limit: %v", err)
-	}
-}
 
-func TestE2EDataValidate_File_ExceedsLimit(t *testing.T) {
-	orig := config.MaxFileSizeMB
-	config.MaxFileSizeMB = 1
-	defer func() { config.MaxFileSizeMB = orig }()
-
-	d := &E2EData{
-		PasswordHash:  validHash,
-		EncryptedFile: string(make([]byte, MaxFileSize()+1)),
-	}
-	err := d.Validate(true)
-	if err == nil {
-		t.Fatal("expected error for file size exceeding limit")
-	}
-	he, ok := err.(*echo.HTTPError)
-	if !ok || he.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 HTTPError, got %v", err)
-	}
-}
-
-func TestE2EDataValidate_File_AtExactLimit(t *testing.T) {
-	orig := config.MaxFileSizeMB
-	config.MaxFileSizeMB = 1
-	defer func() { config.MaxFileSizeMB = orig }()
-
-	d := &E2EData{
-		PasswordHash:  validHash,
-		EncryptedFile: string(make([]byte, MaxFileSize())),
-	}
-	if err := d.Validate(true); err != nil {
-		t.Errorf("unexpected error at exact file limit: %v", err)
-	}
-}
-
-func TestE2EDataValidate_File_NoFilePresent(t *testing.T) {
-	// File with no EncryptedFile set is valid (file may be stored separately)
-	d := &E2EData{PasswordHash: validHash}
-	if err := d.Validate(true); err != nil {
-		t.Errorf("unexpected error for valid file E2EData: %v", err)
-	}
-}
-
-func TestE2EDataValidate_Text_Valid(t *testing.T) {
-	d := &E2EData{
-		PasswordHash:  validHash,
-		EncryptedData: "dGVzdA==",
-		Nonce:         "bm9uY2U=",
-		Header:        "aGVhZGVy",
-	}
-	if err := d.Validate(false); err != nil {
-		t.Errorf("unexpected error for valid text E2EData: %v", err)
+	ok := time.Now().Add(24 * time.Hour).Unix()
+	if err := validateLimits(nil, &ok); err != nil {
+		t.Errorf("unexpected error for a valid TTL: %v", err)
 	}
 }

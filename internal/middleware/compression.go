@@ -50,8 +50,8 @@ func (c *CompressedFileCache) PrecompressStaticFiles() error {
 
 		relPath := strings.TrimPrefix(path, c.baseDir)
 
-		hasBr := fileExists(path + ".br")
-		hasGz := fileExists(path + ".gz")
+		hasBr := !isStale(path+".br", info)
+		hasGz := !isStale(path+".gz", info)
 
 		if !hasBr {
 			if err := compressBrotli(path); err == nil {
@@ -115,9 +115,16 @@ func (c *CompressedFileCache) Middleware(next echo.HandlerFunc) echo.HandlerFunc
 	}
 }
 
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
+// isStale reports whether a compressed copy is missing or older than its
+// source. Without the age check, a leftover .br from an earlier build keeps
+// being served after the source is regenerated, which desyncs the WASM glue
+// from the module it loads.
+func isStale(compressedPath string, source os.FileInfo) bool {
+	info, err := os.Stat(compressedPath)
+	if err != nil {
+		return true
+	}
+	return info.ModTime().Before(source.ModTime())
 }
 
 func compressBrotli(srcPath string) error {

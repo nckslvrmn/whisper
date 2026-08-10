@@ -18,6 +18,12 @@ services:
       # --- Local storage (remove all backend vars; mount a volume at /data) ---
       # No env vars needed. SQLite and filesystem data persist via the /data volume below
     restart: always
+    healthcheck:
+      test: ["CMD", "/whisper", "-healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
     volumes:
       - /home/nsilverman/.aws:/home/whisper/.aws/:ro
       # GCP: mount service account key

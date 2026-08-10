@@ -14,5 +14,7 @@ whisper
 wasm/target
 web/static/crypto.js
 web/static/crypto_bg.wasm
-web/static/crypto_bg.wasm.gz
-web/static/crypto_bg.wasm.br
+# Locally generated precompressed copies would shadow the fresh assets the
+# build produces, since the server serves .br/.gz in preference to the source.
+web/static/*.gz
+web/static/*.br

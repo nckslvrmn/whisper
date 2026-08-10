@@ -1,10 +1,10 @@
 package utils_test
 
 import (
+	"crypto/rand"
 	"encoding/base64"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/nckslvrmn/whisper/pkg/utils"
 )
@@ -76,36 +76,10 @@ func TestRandString_AlphanumericOnly(t *testing.T) {
 	}
 }
 
-// --- RandBytes ---
-
-func TestRandBytes_Length(t *testing.T) {
-	for _, l := range []int{0, 1, 16, 32, 64} {
-		b := utils.RandBytes(l)
-		if len(b) != l {
-			t.Errorf("RandBytes(%d): got %d bytes", l, len(b))
-		}
-	}
-}
-
-func TestRandBytes_Uniqueness(t *testing.T) {
-	a := utils.RandBytes(32)
-	b := utils.RandBytes(32)
-	same := true
-	for i := range a {
-		if a[i] != b[i] {
-			same = false
-			break
-		}
-	}
-	if same {
-		t.Error("RandBytes returned identical 32-byte slices (highly unlikely)")
-	}
-}
-
 // --- B64E / B64D ---
 
 func TestB64E_URLEncoding(t *testing.T) {
-	data := utils.RandBytes(128)
+	data := randBytes(128)
 	got := utils.B64E(data)
 	want := base64.URLEncoding.EncodeToString(data)
 	if got != want {
@@ -119,8 +93,8 @@ func TestB64RoundTrip(t *testing.T) {
 		{0},
 		{0, 1, 2, 255},
 		[]byte("hello world"),
-		utils.RandBytes(64),
-		utils.RandBytes(100),
+		randBytes(64),
+		randBytes(100),
 	}
 	for _, in := range cases {
 		encoded := utils.B64E(in)
@@ -149,67 +123,10 @@ func TestB64D_InvalidInput(t *testing.T) {
 	}
 }
 
-// --- SanitizeViewCount ---
-
-func TestSanitizeViewCount_ValidRange(t *testing.T) {
-	cases := []struct {
-		in   string
-		want int
-	}{
-		{"1", 1},
-		{"5", 5},
-		{"10", 10},
+func randBytes(n int) []byte {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
 	}
-	for _, c := range cases {
-		got := utils.SanitizeViewCount(c.in)
-		if got != c.want {
-			t.Errorf("SanitizeViewCount(%q) = %d, want %d", c.in, got, c.want)
-		}
-	}
-}
-
-func TestSanitizeViewCount_OutOfRange_DefaultsToOne(t *testing.T) {
-	cases := []string{"0", "11", "-1", "100", "abc", "", "-99"}
-	for _, s := range cases {
-		got := utils.SanitizeViewCount(s)
-		if got != 1 {
-			t.Errorf("SanitizeViewCount(%q) = %d, want 1 (default)", s, got)
-		}
-	}
-}
-
-// --- SanitizeTTL ---
-
-func TestSanitizeTTL_ValidDays(t *testing.T) {
-	for _, days := range []string{"1", "3", "7", "14", "30"} {
-		before := time.Now()
-		ttl := utils.SanitizeTTL(days)
-		after := time.Now()
-		if ttl < before.Unix() || ttl > after.AddDate(0, 0, 31).Unix() {
-			t.Errorf("SanitizeTTL(%q) = %d, out of expected range", days, ttl)
-		}
-	}
-}
-
-func TestSanitizeTTL_InvalidFallsBackToSevenDays(t *testing.T) {
-	cases := []string{"0", "2", "5", "8", "99", "abc", ""}
-	for _, s := range cases {
-		before := time.Now()
-		ttl := utils.SanitizeTTL(s)
-		sevenDaysOut := before.AddDate(0, 0, 7).Unix()
-		// Allow a few seconds of clock drift around the expected 7-day value
-		if ttl < sevenDaysOut-5 || ttl > sevenDaysOut+5 {
-			t.Errorf("SanitizeTTL(%q) = %d, expected ~%d (7 days from now)", s, ttl, sevenDaysOut)
-		}
-	}
-}
-
-func TestSanitizeTTL_ReturnsFutureTimestamp(t *testing.T) {
-	now := time.Now().Unix()
-	for _, days := range []string{"1", "3", "7", "14", "30"} {
-		ttl := utils.SanitizeTTL(days)
-		if ttl <= now {
-			t.Errorf("SanitizeTTL(%q) = %d is not in the future (now = %d)", days, ttl, now)
-		}
-	}
+	return b
 }

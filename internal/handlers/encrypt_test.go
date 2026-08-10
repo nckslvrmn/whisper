@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -25,6 +24,10 @@ func encryptBody(t *testing.T, extra map[string]any) string {
 		"header":        "aGVhZGVy",
 	}
 	for k, v := range extra {
+		if v == nil {
+			delete(m, k)
+			continue
+		}
 		m[k] = v
 	}
 	b, err := json.Marshal(m)
@@ -40,9 +43,7 @@ func TestEncryptString_Success_AdvancedOff(t *testing.T) {
 	setupMockStores()
 	config.AdvancedFeatures = false
 
-	vc := 3
-	ttl := futureTTL()
-	body := encryptBody(t, map[string]any{"viewCount": vc, "ttl": ttl})
+	body := encryptBody(t, map[string]any{"viewCount": 3, "ttl": futureTTL()})
 
 	c, rec := newEchoContext(body)
 	if err := EncryptString(c); err != nil {
@@ -56,8 +57,7 @@ func TestEncryptString_Success_AdvancedOff(t *testing.T) {
 	if resp["status"] != "success" {
 		t.Errorf("status = %v, want success", resp["status"])
 	}
-	secretId, _ := resp["secretId"].(string)
-	if len(secretId) != 16 {
+	if secretId, _ := resp["secretId"].(string); len(secretId) != 16 {
 		t.Errorf("secretId = %q, want 16-char string", secretId)
 	}
 }
@@ -66,7 +66,6 @@ func TestEncryptString_Success_AdvancedOn(t *testing.T) {
 	setupMockStores()
 	config.AdvancedFeatures = true
 
-	// No viewCount or ttl — allowed when AdvancedFeatures is true
 	c, rec := newEchoContext(encryptBody(t, nil))
 	if err := EncryptString(c); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -76,115 +75,92 @@ func TestEncryptString_Success_AdvancedOn(t *testing.T) {
 	}
 }
 
-func TestEncryptString_AdvancedOff_MissingTTL_ReturnsError(t *testing.T) {
-	setupMockStores()
+func TestEncryptString_StoredPayloadHasNoViewCountOrTTL(t *testing.T) {
+	ss, _ := setupMockStores()
 	config.AdvancedFeatures = false
 
-	vc := 3
-	body := encryptBody(t, map[string]any{"viewCount": vc})
-	c, _ := newEchoContext(body)
-	err := EncryptString(c)
-	if err == nil {
-		t.Fatal("expected error when TTL missing and AdvancedFeatures=false")
+	ttl := futureTTL()
+	c, rec := newEchoContext(encryptBody(t, map[string]any{"viewCount": 4, "ttl": ttl}))
+	if err := EncryptString(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	secretId, _ := decodeResponse(rec)["secretId"].(string)
+	ss.mu.Lock()
+	stored := ss.secrets[secretId]
+	ss.mu.Unlock()
+	if stored == nil {
+		t.Fatal("secret was not stored")
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stored.payload, &payload); err != nil {
+		t.Fatalf("stored payload is not JSON: %v", err)
+	}
+	if _, ok := payload["viewCount"]; ok {
+		t.Error("stored payload must not carry viewCount")
+	}
+	if _, ok := payload["ttl"]; ok {
+		t.Error("stored payload must not carry ttl")
+	}
+	if stored.viewCount == nil || *stored.viewCount != 4 {
+		t.Errorf("native viewCount = %v, want 4", stored.viewCount)
+	}
+	if stored.ttl == nil || *stored.ttl != ttl {
+		t.Errorf("native ttl = %v, want %d", stored.ttl, ttl)
 	}
 }
 
-func TestEncryptString_AdvancedOff_MissingViewCount_ReturnsError(t *testing.T) {
+func TestEncryptString_AdvancedOff_MissingTTL(t *testing.T) {
 	setupMockStores()
 	config.AdvancedFeatures = false
 
-	body := encryptBody(t, map[string]any{"ttl": futureTTL()})
-	c, _ := newEchoContext(body)
-	err := EncryptString(c)
-	if err == nil {
-		t.Fatal("expected error when viewCount missing and AdvancedFeatures=false")
+	c, _ := newEchoContext(encryptBody(t, map[string]any{"viewCount": 3}))
+	assertHTTPError(t, EncryptString(c), http.StatusBadRequest)
+}
+
+func TestEncryptString_AdvancedOff_MissingViewCount(t *testing.T) {
+	setupMockStores()
+	config.AdvancedFeatures = false
+
+	c, _ := newEchoContext(encryptBody(t, map[string]any{"ttl": futureTTL()}))
+	assertHTTPError(t, EncryptString(c), http.StatusBadRequest)
+}
+
+func TestEncryptString_ValidationFailsBeforeStorage(t *testing.T) {
+	ss, _ := setupMockStores()
+	config.AdvancedFeatures = true
+
+	cases := map[string]string{
+		"missing password hash": `{"encryptedData":"dGVzdA==","nonce":"bm9uY2U=","header":"aGVhZGVy"}`,
+		"invalid password hash": encryptBody(t, map[string]any{"passwordHash": "tooshort"}),
+		"missing data":          encryptBody(t, map[string]any{"encryptedData": nil}),
+		"missing nonce":         encryptBody(t, map[string]any{"nonce": nil}),
+		"missing header":        encryptBody(t, map[string]any{"header": nil}),
+		"ttl in the past":       encryptBody(t, map[string]any{"ttl": time.Now().Add(-time.Hour).Unix()}),
+		"ttl beyond 30 days":    encryptBody(t, map[string]any{"ttl": time.Now().Add(31 * 24 * time.Hour).Unix()}),
+		"view count too high":   encryptBody(t, map[string]any{"viewCount": 11}),
+		"view count negative":   encryptBody(t, map[string]any{"viewCount": -1}),
+		"invalid json":          "{invalid json",
+		"text too large":        encryptBody(t, map[string]any{"encryptedData": strings.Repeat("x", MaxTextSize()+1)}),
 	}
-}
 
-func TestEncryptString_MissingPasswordHash(t *testing.T) {
-	setupMockStores()
-	config.AdvancedFeatures = true
-
-	body := `{"encryptedData":"dGVzdA==","nonce":"bm9uY2U=","header":"aGVhZGVy"}`
-	c, _ := newEchoContext(body)
-	err := EncryptString(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
-}
-
-func TestEncryptString_InvalidPasswordHash(t *testing.T) {
-	setupMockStores()
-	config.AdvancedFeatures = true
-
-	body := encryptBody(t, map[string]any{"passwordHash": "tooshort"})
-	c, _ := newEchoContext(body)
-	err := EncryptString(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
-}
-
-func TestEncryptString_MissingEncryptedData(t *testing.T) {
-	setupMockStores()
-	config.AdvancedFeatures = true
-
-	body := fmt.Sprintf(`{"passwordHash":%q,"nonce":"x","header":"y"}`, validHash)
-	c, _ := newEchoContext(body)
-	err := EncryptString(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
-}
-
-func TestEncryptString_TTL_InThePast(t *testing.T) {
-	setupMockStores()
-	config.AdvancedFeatures = true
-
-	pastTTL := time.Now().Add(-1 * time.Hour).Unix()
-	vc := 1
-	body := encryptBody(t, map[string]any{"viewCount": vc, "ttl": pastTTL})
-	c, _ := newEchoContext(body)
-	err := EncryptString(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
-}
-
-func TestEncryptString_TTL_ExceedsThirtyDays(t *testing.T) {
-	setupMockStores()
-	config.AdvancedFeatures = true
-
-	farFuture := time.Now().Add(31 * 24 * time.Hour).Unix()
-	vc := 1
-	body := encryptBody(t, map[string]any{"viewCount": vc, "ttl": farFuture})
-	c, _ := newEchoContext(body)
-	err := EncryptString(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
-}
-
-func TestEncryptString_ViewCount_AboveMax(t *testing.T) {
-	setupMockStores()
-	config.AdvancedFeatures = true
-
-	vc := 11
-	body := encryptBody(t, map[string]any{"viewCount": vc, "ttl": futureTTL()})
-	c, _ := newEchoContext(body)
-	err := EncryptString(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
-}
-
-func TestEncryptString_ViewCount_Negative(t *testing.T) {
-	setupMockStores()
-	config.AdvancedFeatures = true
-
-	vc := -1
-	body := encryptBody(t, map[string]any{"viewCount": vc, "ttl": futureTTL()})
-	c, _ := newEchoContext(body)
-	err := EncryptString(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			c, _ := newEchoContext(body)
+			assertHTTPError(t, EncryptString(c), http.StatusBadRequest)
+			if ss.called("store") {
+				t.Error("storage was written despite a validation failure")
+			}
+		})
+	}
 }
 
 func TestEncryptString_ViewCount_Zero_Unlimited(t *testing.T) {
 	setupMockStores()
 	config.AdvancedFeatures = true
 
-	// viewCount=0 means unlimited — should succeed
-	vc := 0
-	body := encryptBody(t, map[string]any{"viewCount": vc, "ttl": futureTTL()})
-	c, rec := newEchoContext(body)
+	c, rec := newEchoContext(encryptBody(t, map[string]any{"viewCount": 0, "ttl": futureTTL()}))
 	if err := EncryptString(c); err != nil {
 		t.Fatalf("unexpected error for viewCount=0: %v", err)
 	}
@@ -193,86 +169,25 @@ func TestEncryptString_ViewCount_Zero_Unlimited(t *testing.T) {
 	}
 }
 
-func TestEncryptString_InvalidJSON(t *testing.T) {
-	setupMockStores()
-	config.AdvancedFeatures = true
-
-	c, _ := newEchoContext("{invalid json")
-	err := EncryptString(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
-}
-
 func TestEncryptString_StoreError_Returns500(t *testing.T) {
-	ss, fs := setupMockStores()
-	ss.failOp = "store"
-	_ = fs
-	config.AdvancedFeatures = true
-
-	body := encryptBody(t, nil)
-	c, _ := newEchoContext(body)
-	err := EncryptString(c)
-	assertHTTPError(t, err, http.StatusInternalServerError)
-}
-
-func TestEncryptString_SecretIDStoredInStore(t *testing.T) {
 	ss, _ := setupMockStores()
+	ss.failOp = "store"
 	config.AdvancedFeatures = true
 
-	c, rec := newEchoContext(encryptBody(t, nil))
-	if err := EncryptString(c); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	resp := decodeResponse(rec)
-	secretId, _ := resp["secretId"].(string)
-
-	ss.mu.Lock()
-	_, stored := ss.secrets[secretId]
-	ss.mu.Unlock()
-
-	if !stored {
-		t.Error("secret was not found in store under returned secretId")
-	}
-}
-
-func TestEncryptString_TextSizeExceedsLimit(t *testing.T) {
-	setupMockStores()
-	config.AdvancedFeatures = true
-
-	body := encryptBody(t, map[string]any{"encryptedData": strings.Repeat("x", MaxTextSize()+1)})
-	c, _ := newEchoContext(body)
-	err := EncryptString(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
+	c, _ := newEchoContext(encryptBody(t, nil))
+	assertHTTPError(t, EncryptString(c), http.StatusInternalServerError)
 }
 
 // --- EncryptFile ---
 
-func TestEncryptFile_Success_NoFileData(t *testing.T) {
-	setupMockStores()
-	config.AdvancedFeatures = true
-
-	body := fmt.Sprintf(`{"passwordHash":%q,"nonce":"bm9uY2U=","header":"aGVhZGVy","isFile":true}`, validHash)
-	c, rec := newEchoContext(body)
-	if err := EncryptFile(c); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if rec.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200", rec.Code)
-	}
-	resp := decodeResponse(rec)
-	if resp["status"] != "success" {
-		t.Errorf("status = %v, want success", resp["status"])
-	}
-}
-
-func TestEncryptFile_Success_WithFileData(t *testing.T) {
+func TestEncryptFile_Success(t *testing.T) {
 	ss, fs := setupMockStores()
-	_ = ss
 	config.AdvancedFeatures = true
 
-	// Small base64-encoded "file" payload
-	body := fmt.Sprintf(`{"passwordHash":%q,"nonce":"bm9uY2U=","header":"aGVhZGVy","isFile":true,"encryptedFile":"dGVzdGZpbGVkYXRh"}`, validHash)
-	c, rec := newEchoContext(body)
+	c, rec := newMultipartContext([][2]string{
+		{"payload", filePayloadJSON(nil)},
+		{"file", "rawciphertextbytes"},
+	})
 	if err := EncryptFile(c); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -280,40 +195,144 @@ func TestEncryptFile_Success_WithFileData(t *testing.T) {
 		t.Errorf("status = %d, want 200", rec.Code)
 	}
 
-	resp := decodeResponse(rec)
-	secretId, _ := resp["secretId"].(string)
+	secretId, _ := decodeResponse(rec)["secretId"].(string)
+	if !fs.has(secretId) {
+		t.Error("encrypted file was not stored")
+	}
+	if !ss.has(secretId) {
+		t.Error("secret record was not stored")
+	}
 
 	fs.mu.Lock()
-	_, fileStored := fs.files[secretId]
+	stored := string(fs.files[secretId])
 	fs.mu.Unlock()
-
-	if !fileStored {
-		t.Error("encrypted file was not stored in file store")
+	if stored != "rawciphertextbytes" {
+		t.Errorf("stored file = %q, want the raw bytes as sent", stored)
 	}
 }
 
-func TestEncryptFile_MissingPasswordHash(t *testing.T) {
+func TestEncryptFile_RecordStoreFailure_DeletesFile(t *testing.T) {
+	ss, fs := setupMockStores()
+	ss.failOp = "store"
+	config.AdvancedFeatures = true
+
+	c, _ := newMultipartContext([][2]string{
+		{"payload", filePayloadJSON(nil)},
+		{"file", "rawciphertextbytes"},
+	})
+	assertHTTPError(t, EncryptFile(c), http.StatusInternalServerError)
+
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	if len(fs.files) != 0 {
+		t.Errorf("orphaned file left behind: %v", fs.files)
+	}
+}
+
+func TestEncryptFile_MalformedUploads(t *testing.T) {
+	config.AdvancedFeatures = true
+
+	cases := map[string][][2]string{
+		"missing payload part":  {{"file", "data"}},
+		"parts out of order":    {{"file", "data"}, {"payload", filePayloadJSON(nil)}},
+		"missing file part":     {{"payload", filePayloadJSON(nil)}},
+		"empty file part":       {{"payload", filePayloadJSON(nil)}, {"file", ""}},
+		"invalid payload json":  {{"payload", "{nope"}, {"file", "data"}},
+		"missing metadata":      {{"payload", filePayloadJSON(map[string]any{"encryptedMetadata": nil})}, {"file", "data"}},
+		"missing password hash": {{"payload", filePayloadJSON(map[string]any{"passwordHash": nil})}, {"file", "data"}},
+		"missing nonce":         {{"payload", filePayloadJSON(map[string]any{"nonce": nil})}, {"file", "data"}},
+		"extra part":            {{"payload", filePayloadJSON(nil)}, {"file", "data"}, {"surprise", "x"}},
+	}
+
+	for name, parts := range cases {
+		t.Run(name, func(t *testing.T) {
+			ss, fs := setupMockStores()
+			c, _ := newMultipartContext(parts)
+			assertHTTPError(t, EncryptFile(c), http.StatusBadRequest)
+
+			if ss.called("store") {
+				t.Error("secret record written for a rejected upload")
+			}
+			fs.mu.Lock()
+			defer fs.mu.Unlock()
+			if len(fs.files) != 0 {
+				t.Errorf("orphaned file left behind: %v", fs.files)
+			}
+		})
+	}
+}
+
+func TestEncryptFile_NotMultipart(t *testing.T) {
 	setupMockStores()
 	config.AdvancedFeatures = true
 
-	c, _ := newEchoContext(`{"isFile":true,"nonce":"x","header":"y"}`)
-	err := EncryptFile(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
+	c, _ := newEchoContext(`{"passwordHash":"` + validHash + `"}`)
+	assertHTTPError(t, EncryptFile(c), http.StatusBadRequest)
 }
 
-func TestEncryptFile_FileSizeExceedsLimit(t *testing.T) {
-	setupMockStores()
+func TestEncryptFile_OversizedFilePart(t *testing.T) {
+	_, fs := setupMockStores()
 	config.AdvancedFeatures = true
 
 	orig := config.MaxFileSizeMB
 	config.MaxFileSizeMB = 1
 	defer func() { config.MaxFileSizeMB = orig }()
 
-	oversized := strings.Repeat("x", MaxFileSize()+1)
-	body := fmt.Sprintf(`{"passwordHash":%q,"encryptedFile":%q,"nonce":"x","header":"y"}`, validHash, oversized)
-	c, _ := newEchoContext(body)
-	err := EncryptFile(c)
-	assertHTTPError(t, err, http.StatusBadRequest)
+	c, _ := newMultipartContext([][2]string{
+		{"payload", filePayloadJSON(nil)},
+		{"file", strings.Repeat("x", MaxFileSize()+1)},
+	})
+	assertHTTPError(t, EncryptFile(c), http.StatusBadRequest)
+
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	if len(fs.files) != 0 {
+		t.Errorf("oversized upload left a file behind: %v", fs.files)
+	}
+}
+
+func TestEncryptFile_AdvancedOff_RequiresLimits(t *testing.T) {
+	setupMockStores()
+	config.AdvancedFeatures = false
+	defer func() { config.AdvancedFeatures = true }()
+
+	c, _ := newMultipartContext([][2]string{
+		{"payload", filePayloadJSON(nil)},
+		{"file", "data"},
+	})
+	assertHTTPError(t, EncryptFile(c), http.StatusBadRequest)
+}
+
+func TestEncryptFile_StoredPayloadIsFile(t *testing.T) {
+	ss, _ := setupMockStores()
+	config.AdvancedFeatures = true
+
+	c, rec := newMultipartContext([][2]string{
+		{"payload", filePayloadJSON(nil)},
+		{"file", "data"},
+	})
+	if err := EncryptFile(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	secretId, _ := decodeResponse(rec)["secretId"].(string)
+	ss.mu.Lock()
+	stored := ss.secrets[secretId]
+	ss.mu.Unlock()
+
+	var payload SecretPayload
+	if err := json.Unmarshal(stored.payload, &payload); err != nil {
+		t.Fatalf("stored payload is not JSON: %v", err)
+	}
+	if !payload.IsFile {
+		t.Error("isFile = false, want true")
+	}
+	if payload.EncryptedData != "" {
+		t.Errorf("encryptedData = %q, want empty for file secrets", payload.EncryptedData)
+	}
+	if payload.EncryptedMetadata != "bWV0YQ==" {
+		t.Errorf("encryptedMetadata = %q", payload.EncryptedMetadata)
+	}
 }
 
 // --- helper ---
@@ -328,6 +347,6 @@ func assertHTTPError(t *testing.T, err error, wantCode int) {
 		t.Fatalf("expected *echo.HTTPError, got %T: %v", err, err)
 	}
 	if he.Code != wantCode {
-		t.Errorf("HTTP status = %d, want %d", he.Code, wantCode)
+		t.Errorf("HTTP status = %d, want %d: %v", he.Code, wantCode, he.Message)
 	}
 }

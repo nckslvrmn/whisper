@@ -1,0 +1,70 @@
+{
+  "note": "Known-answer vectors shared by the Go SDK and the Rust WASM module. Regenerate with: go test ./pkg/client -run TestCryptoVectors -update",
+  "argon2": {
+    "memoryKiB": 65536,
+    "timeCost": 2,
+    "parallelism": 1,
+    "keyLen": 32
+  },
+  "text": [
+    {
+      "name": "ascii",
+      "passphrase": "correct-horse-battery-staple-1234",
+      "salt": "EREREREREREREREREREREQ==",
+      "nonce": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYX",
+      "header": "ZGVmZ2hpamtsbW5vcHFycw==",
+      "plaintext": "the eagle has landed",
+      "ciphertext": "oe7wEfEJNJUMlNNRH7_MgjETVDm3ru3ragpO6uB9BovZaJ8b",
+      "passwordHash": "f5d323a2364f98789865b52735de3503cd0868ee7053ac3113a90ad796e4cb02"
+    },
+    {
+      "name": "empty plaintext",
+      "passphrase": "a",
+      "salt": "AAAAAAAAAAAAAAAAAAAAAA==",
+      "nonce": "________________________________",
+      "header": "f39_f39_f39_f39_f39_fw==",
+      "plaintext": "",
+      "ciphertext": "BI7u9IMkdYhWa_RUCeb6UA==",
+      "passwordHash": "7077efabb5be20d213fcdcbf9324517abca09137f6543cb6b766a15898e25392"
+    },
+    {
+      "name": "unicode plaintext",
+      "passphrase": "pässwörd-with-ünïcode-😀-padding",
+      "salt": "yMnKy8zNzs_Q0dLT1NXW1w==",
+      "nonce": "MjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJ",
+      "header": "BwgJCgsMDQ4PEBESExQVFg==",
+      "plaintext": "héllo, wörld 😀 — ünïcode",
+      "ciphertext": "OnHrpLvtBVdmoNrXdM1HMS-aa2QS8Z_vaoSSLO31kJFR3yW1br9Z38iZn7tpTcpcUA==",
+      "passwordHash": "8fdddb568a109cacb5d4ad97b005339564c443bee914d65cd87aeb62953f73fd"
+    }
+  ],
+  "file": [
+    {
+      "name": "binary file with metadata",
+      "passphrase": "file-vector-passphrase-0123456789",
+      "salt": "IiIiIiIiIiIiIiIiIiIiIg==",
+      "nonce": "CgsMDQ4PEBESExQVFhcYGRobHB0eHyAh",
+      "header": "FBUWFxgZGhscHR4fICEiIw==",
+      "fileData": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn-AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq-wsbKztLW2t7i5uru8vb6_wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t_g4eLj5OXm5-jp6uvs7e7v8PHy8_T19vf4-fr7_P3-_wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp-goaKjpKWmp6ipqqusra6vsLGys7S1tre4ubq7vL2-v8DBwsPExcbHyMnKy8zNzs_Q0dLT1NXW19jZ2tvc3d7f4OHi4-Tl5ufo6err7O3u7_Dx8vP09fb3-Pn6-_z9_v8=",
+      "encryptedFile": "44tz6u79oUQT7ERYVF2SUm6HF3QQixtDt05Hbu8-L5YJ6ggjYtYX1kwUf7OOfPoiPqX1P5yP9hBcZjI3IJndgF2QXC8lY1X3X_JJZ2sOVOJNCKM9ovax57qBquavh1bntGOEdQqEzyBvgjaZyJ1qIetu0SMVCEiYxy3YXBwoPoKHckqefohpzwbR6HD5KI88n6kSnDlwlM8P4ZPK8tnvO4ukmhxHH3CfWehOOaC4al7E5MRYkwmPokIPHTOT0f0E8XSlDWO5h0sKztOCNe_C9TZQdy-CghKksr2yDpVQxLQZbt2LcSzCTEl3tkI1d_-8I18gIGgkkR8-DZWONcCkqsrYwgx6hEIz6ALuqkuCB4QwAwFJRTPVyenWDVhPxSmhMU8_L0hFDzf-08xStbeePXwuE9Ge9hL57FujtaafHB5bhsTuwkcmKzMYutCJiBvuutpaWVTdIVWGfu1k5VD7AuyKs7Qf8af5cfS4B69dk-IlOSIj6fGSpmKEaj1oP9u-bAKKPBK99iGHHdW2Edljo-Ab9CXtycpkeyGzvvGdt-51vaztM3CQgsCHMq9aRGubXHjeE4vu6Q_Ex2Libm9FddAiyFj65pHQJhXuLrO4u8OEV1py6Q5zjL1WYceg6FRoX1P7Ga6k8POm2CgwE5B9zat6jUkmYBVBrB0BBu0cZBKu_5h7kpNN-XOjDx8h9gIi",
+      "metaNonce": "Hh8gISIjJCUmJygpKissLS4vMDEyMzQ1",
+      "fileName": "notes.bin",
+      "fileType": "application/octet-stream",
+      "metadataJson": "{\"file_name\":\"notes.bin\",\"file_type\":\"application/octet-stream\"}",
+      "encryptedMetadata": "Hh8gISIjJCUmJygpKissLS4vMDEyMzQ1-u2t8tzszjSJWevHPgxQm9b_6VNjiFMssjNhkKrNj9SZas5PCoGXQAzfMb0Mbxk2CftKiVwjkDJNOw6Rgo2okH1t4vAwtZLmFbZdr_BBmVU=",
+      "passwordHash": "713461873f50f90734ac56220c6264d05e5ba56de8339b18c253da85c5e39f5c"
+    }
+  ],
+  "displayPassphrase": [
+    {
+      "display": "MzMzMzMzMzMzMzMzMzMzMw==0123456789abcdefghijklmnopqrstuv",
+      "salt": "MzMzMzMzMzMzMzMzMzMzMw==",
+      "passphrase": "0123456789abcdefghijklmnopqrstuv"
+    },
+    {
+      "display": "8PHy8_T19vf4-fr7_P3-_w==!#$%\u0026*+-=?@_~aBcDeFgHiJkLmNoPqRs",
+      "salt": "8PHy8_T19vf4-fr7_P3-_w==",
+      "passphrase": "!#$%\u0026*+-=?@_~aBcDeFgHiJkLmNoPqRs"
+    }
+  ]
+}

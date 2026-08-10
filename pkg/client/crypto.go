@@ -137,26 +137,32 @@ type TextPayload struct {
 	IsFile        bool   `json:"isFile"`
 }
 
-// FilePayload is the wire payload for a file secret as sent to POST /encrypt_file.
+// FilePayload is the JSON "payload" part of a multipart POST /encrypt_file
+// request. EncryptedFile is the raw ciphertext sent as the separate "file"
+// part, so it carries no JSON tag.
 type FilePayload struct {
 	PasswordHash      string `json:"passwordHash"`
-	EncryptedFile     string `json:"encryptedFile"`
 	EncryptedMetadata string `json:"encryptedMetadata"`
 	Nonce             string `json:"nonce"`
 	Header            string `json:"header"`
 	ViewCount         *int   `json:"viewCount,omitempty"`
 	TTL               *int64 `json:"ttl,omitempty"`
 	IsFile            bool   `json:"isFile"`
+
+	EncryptedFile []byte `json:"-"`
 }
 
-// DecryptResponse mirrors the JSON body returned by POST /decrypt.
+// DecryptResponse is a decoded POST /decrypt response. Text secrets come back
+// as JSON. File secrets come back as an octet-stream body with the small
+// fields in X-Whisper-* headers, and EncryptedFile holds that raw body.
 type DecryptResponse struct {
 	EncryptedData     string `json:"encryptedData"`
 	EncryptedMetadata string `json:"encryptedMetadata"`
-	EncryptedFile     string `json:"encryptedFile,omitempty"`
 	Nonce             string `json:"nonce"`
 	Header            string `json:"header"`
 	IsFile            bool   `json:"isFile"`
+
+	EncryptedFile []byte `json:"-"`
 }
 
 // EncryptText encrypts plaintext and produces a ready-to-POST payload plus the
@@ -201,10 +207,7 @@ func EncryptFile(name, contentType string, data []byte, viewCount *int, ttl *int
 		return nil, "", fmt.Errorf("encrypt file: %w", err)
 	}
 
-	metaJSON, err := json.Marshal(map[string]string{
-		"file_name": name,
-		"file_type": contentType,
-	})
+	metaJSON, err := metadataJSON(name, contentType)
 	if err != nil {
 		return nil, "", fmt.Errorf("marshal metadata: %w", err)
 	}
@@ -221,7 +224,7 @@ func EncryptFile(name, contentType string, data []byte, viewCount *int, ttl *int
 
 	return &FilePayload{
 		PasswordHash:      hex.EncodeToString(authKey),
-		EncryptedFile:     base64.URLEncoding.EncodeToString(encFile),
+		EncryptedFile:     encFile,
 		EncryptedMetadata: base64.URLEncoding.EncodeToString(encMetaBlob),
 		Nonce:             base64.URLEncoding.EncodeToString(fileNonce),
 		Header:            base64.URLEncoding.EncodeToString(header),
@@ -280,10 +283,6 @@ func DecryptFile(resp *DecryptResponse, displayPassphrase string) (*DecryptedFil
 		return nil, err
 	}
 
-	encFile, err := base64.URLEncoding.DecodeString(resp.EncryptedFile)
-	if err != nil {
-		return nil, fmt.Errorf("decode encrypted file: %w", err)
-	}
 	encMetaBlob, err := base64.URLEncoding.DecodeString(resp.EncryptedMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("decode encrypted metadata: %w", err)
@@ -317,7 +316,7 @@ func DecryptFile(resp *DecryptResponse, displayPassphrase string) (*DecryptedFil
 		return nil, fmt.Errorf("parse metadata: %w", err)
 	}
 
-	data, err := xchachaOpen(encKey, nonce, header, encFile)
+	data, err := xchachaOpen(encKey, nonce, header, resp.EncryptedFile)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt file: %w", err)
 	}
@@ -327,6 +326,16 @@ func DecryptFile(resp *DecryptResponse, displayPassphrase string) (*DecryptedFil
 		ContentType: meta.FileType,
 		Data:        data,
 	}, nil
+}
+
+// metadataJSON is the exact plaintext the metadata blob encrypts. The Rust
+// module builds the same string with the same key order, and the shared crypto
+// vectors pin the two together.
+func metadataJSON(name, contentType string) ([]byte, error) {
+	return json.Marshal(map[string]string{
+		"file_name": name,
+		"file_type": contentType,
+	})
 }
 
 func decodeFixed(s string, want int, field string) ([]byte, error) {
