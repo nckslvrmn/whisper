@@ -125,17 +125,11 @@ func main() {
 		ReferrerPolicy: "strict-origin-when-cross-origin",
 	}))
 
+	// Caching headers for /static are set inside this middleware. It answers
+	// compressed requests itself without calling next, so anything downstream
+	// would miss them.
 	e.Use(compressedCache.Middleware)
 	e.Static("/static", "web/static")
-
-	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			if len(c.Path()) >= 7 && c.Path()[:7] == "/static" {
-				c.Response().Header().Set("Cache-Control", "public, max-age=3600")
-			}
-			return next(c)
-		}
-	})
 
 	e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
 		Level: 5,
