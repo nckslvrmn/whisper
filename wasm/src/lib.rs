@@ -21,7 +21,7 @@ const ARGON2_P_COST: u32 = 1;
 
 fn rand_bytes(len: usize) -> Vec<u8> {
     let mut bytes = vec![0u8; len];
-    getrandom::getrandom(&mut bytes).expect("getrandom failed");
+    getrandom::fill(&mut bytes).expect("getrandom failed");
     bytes
 }
 
@@ -34,7 +34,7 @@ fn rand_string(length: usize) -> String {
     let mut result = Vec::with_capacity(length);
     while result.len() < length {
         let mut buf = vec![0u8; (length - result.len()) * 2];
-        getrandom::getrandom(&mut buf).expect("getrandom failed");
+        getrandom::fill(&mut buf).expect("getrandom failed");
         for b in buf {
             if (b as usize) < ACCEPT_BELOW {
                 result.push(CHARS[b as usize % CHAR_LEN] as char);
@@ -103,9 +103,10 @@ fn xchacha_encrypt(
 ) -> Result<Vec<u8>, String> {
     let (enc_key, _) = derive_keys(passphrase, salt);
     let cipher = XChaCha20Poly1305::new_from_slice(&enc_key).expect("key is 32 bytes");
+    let nonce = XNonce::try_from(nonce).map_err(|_| "invalid nonce length".to_string())?;
     cipher
         .encrypt(
-            XNonce::from_slice(nonce),
+            &nonce,
             Payload {
                 msg: data,
                 aad: header,
@@ -123,9 +124,10 @@ fn xchacha_decrypt(
 ) -> Result<Vec<u8>, String> {
     let (enc_key, _) = derive_keys(passphrase, salt);
     let cipher = XChaCha20Poly1305::new_from_slice(&enc_key).expect("key is 32 bytes");
+    let nonce = XNonce::try_from(nonce).map_err(|_| "invalid nonce length".to_string())?;
     cipher
         .decrypt(
-            XNonce::from_slice(nonce),
+            &nonce,
             Payload {
                 msg: data,
                 aad: header,
