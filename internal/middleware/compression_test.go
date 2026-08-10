@@ -232,6 +232,88 @@ func TestPrecompressStaticFiles_RecompressesStaleCopies(t *testing.T) {
 	}
 }
 
+// --- Middleware: caching headers ---
+
+func TestMiddleware_CachingHeadersOnEveryEncoding(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "app.js", largeContent())
+
+	cache := middleware.NewCompressedFileCache(dir)
+	cache.PrecompressStaticFiles()
+
+	cases := map[string]string{"br": "br", "gzip": "gzip", "": ""}
+	tags := map[string]string{}
+
+	for encoding, wantEncoding := range cases {
+		rec := serveStatic(t, cache, dir, "/static/app.js", encoding)
+
+		if got := rec.Header().Get("Cache-Control"); got != "public, no-cache" {
+			t.Errorf("%q: Cache-Control = %q", encoding, got)
+		}
+		if got := rec.Header().Get("Vary"); got != "Accept-Encoding" {
+			t.Errorf("%q: Vary = %q", encoding, got)
+		}
+		if got := rec.Header().Get("Content-Encoding"); got != wantEncoding {
+			t.Errorf("%q: Content-Encoding = %q, want %q", encoding, got, wantEncoding)
+		}
+		etag := rec.Header().Get("ETag")
+		if etag == "" {
+			t.Errorf("%q: missing ETag", encoding)
+		}
+		tags[encoding] = etag
+	}
+
+	if tags["br"] == tags[""] || tags["gzip"] == tags[""] || tags["br"] == tags["gzip"] {
+		t.Errorf("each encoding needs its own ETag, got %v", tags)
+	}
+}
+
+func TestMiddleware_ETagTracksContentNotMtime(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "app.js", largeContent())
+
+	cache := middleware.NewCompressedFileCache(dir)
+	cache.PrecompressStaticFiles()
+	before := serveStatic(t, cache, dir, "/static/app.js", "").Header().Get("ETag")
+
+	// A rebuild that leaves the bytes alone must not invalidate caches.
+	future := time.Now().Add(time.Minute)
+	if err := os.Chtimes(path, future, future); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+	cache = middleware.NewCompressedFileCache(dir)
+	cache.PrecompressStaticFiles()
+	if got := serveStatic(t, cache, dir, "/static/app.js", "").Header().Get("ETag"); got != before {
+		t.Errorf("ETag changed on an mtime-only rebuild: %q then %q", before, got)
+	}
+
+	// Changed bytes must invalidate.
+	if err := os.WriteFile(path, []byte(largeContent()+"// new release\n"), 0644); err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	cache = middleware.NewCompressedFileCache(dir)
+	cache.PrecompressStaticFiles()
+	if got := serveStatic(t, cache, dir, "/static/app.js", ""); got.Header().Get("ETag") == before {
+		t.Error("ETag did not change after the content changed")
+	}
+}
+
+func TestMiddleware_SmallFilesStillGetHeaders(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "tiny.js", "let a = 1;\n")
+
+	cache := middleware.NewCompressedFileCache(dir)
+	cache.PrecompressStaticFiles()
+
+	rec := serveStatic(t, cache, dir, "/static/tiny.js", "br")
+	if rec.Header().Get("Cache-Control") == "" || rec.Header().Get("ETag") == "" {
+		t.Error("a file too small to compress still needs caching headers")
+	}
+	if rec.Header().Get("Content-Encoding") != "" {
+		t.Error("a file too small to compress must not claim an encoding")
+	}
+}
+
 // --- Middleware: routing ---
 
 func TestMiddleware_NonStaticPath_PassesThrough(t *testing.T) {
@@ -401,4 +483,21 @@ func TestMiddleware_PathTraversal_PassesThrough(t *testing.T) {
 			t.Error("path traversal should not serve arbitrary files")
 		}
 	}
+}
+
+// serveStatic runs one /static request through the middleware chain and
+// returns the recorded response.
+func serveStatic(t *testing.T, cache *middleware.CompressedFileCache, dir, target, acceptEncoding string) *httptest.ResponseRecorder {
+	t.Helper()
+	e := echo.New()
+	e.Use(cache.Middleware)
+	e.Static("/static", dir)
+
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	if acceptEncoding != "" {
+		req.Header.Set("Accept-Encoding", acceptEncoding)
+	}
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	return rec
 }
