@@ -3,6 +3,9 @@ RUN apk add --no-cache brotli binaryen && \
     rustup target add wasm32-unknown-unknown && \
     cargo install wasm-bindgen-cli --version 0.2.126 --locked
 WORKDIR /src/wasm
+# .cargo/config.toml names the getrandom backend. Without it the dependency
+# warm-up below fails to compile for wasm32.
+COPY wasm/.cargo ./.cargo
 COPY wasm/Cargo.toml wasm/Cargo.lock ./
 RUN mkdir src && \
     printf 'pub fn warm_dependencies() {}\n' > src/lib.rs && \

@@ -1,0 +1,4 @@
+# getrandom 0.3+ refuses to build for wasm32-unknown-unknown until a backend is
+# named, since the target has no OS entropy source of its own.
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
