@@ -287,6 +287,23 @@ func TestDynamo_ConsumeView_ItemVanishedMidRace(t *testing.T) {
 	}
 }
 
+func TestDynamo_ConsumeView_OutOfRangeCounterFailsClosed(t *testing.T) {
+	store, fake := newTestDynamoStore(t)
+	ctx := context.Background()
+
+	store.StoreSecret(ctx, "corrupted1234567", []byte(`{}`), nil, ptrInt(5))
+	fake.items["corrupted1234567"]["view_count"] = &dynamotypes.AttributeValueMemberN{Value: "99999999999999999999"}
+	fake.condFailUpdate = true
+
+	remaining, err := store.ConsumeView(ctx, "corrupted1234567")
+	if err == nil {
+		t.Fatalf("expected an error for an out-of-range counter, got remaining = %d", remaining)
+	}
+	if remaining == storagetypes.UnlimitedViews {
+		t.Error("a corrupt counter must not read as unlimited views")
+	}
+}
+
 // --- DeleteSecret ---
 
 func TestDynamo_DeleteSecret(t *testing.T) {

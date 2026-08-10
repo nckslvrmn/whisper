@@ -133,10 +133,14 @@ func (d *DynamoStore) consumeOnce(ctx context.Context, id string) (int, error) {
 		ReturnValues:              dynamotypes.ReturnValueUpdatedNew,
 	})
 	if err == nil {
-		if remaining := numberAttr(updated.Attributes, "view_count"); remaining != nil {
-			return int(*remaining), nil
+		remaining, present, err := viewCountAttr(updated.Attributes)
+		if err != nil {
+			return 0, err
 		}
-		return 0, fmt.Errorf("update did not return view_count")
+		if !present {
+			return 0, fmt.Errorf("update did not return view_count")
+		}
+		return remaining, nil
 	}
 	if !isConditionalCheckFailed(err) {
 		return 0, fmt.Errorf("failed to consume view: %w", err)
@@ -154,8 +158,11 @@ func (d *DynamoStore) consumeOnce(ctx context.Context, id string) (int, error) {
 		return 0, storagetypes.ErrNotFound
 	}
 
-	viewCount := numberAttr(result.Item, "view_count")
-	if viewCount == nil || *viewCount == 0 {
+	viewCount, present, err := viewCountAttr(result.Item)
+	if err != nil {
+		return 0, err
+	}
+	if !present || viewCount == 0 {
 		return storagetypes.UnlimitedViews, nil
 	}
 	return 0, errRaced
@@ -175,6 +182,21 @@ func (d *DynamoStore) DeleteSecret(ctx context.Context, id string) error {
 func isConditionalCheckFailed(err error) bool {
 	var cond *dynamotypes.ConditionalCheckFailedException
 	return errors.As(err, &cond)
+}
+
+// Parsing straight to int avoids narrowing from int64. An absent attribute
+// means unlimited views, but an out-of-range one is corrupt and fails closed.
+func viewCountAttr(item map[string]dynamotypes.AttributeValue) (count int, present bool, err error) {
+	attr, ok := item["view_count"].(*dynamotypes.AttributeValueMemberN)
+	if !ok {
+		return 0, false, nil
+	}
+
+	count, err = strconv.Atoi(attr.Value)
+	if err != nil {
+		return 0, true, fmt.Errorf("invalid view_count attribute %q: %w", attr.Value, err)
+	}
+	return count, true, nil
 }
 
 func numberAttr(item map[string]dynamotypes.AttributeValue, name string) *int64 {

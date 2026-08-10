@@ -106,8 +106,13 @@ func (f *FirestoreStore) ConsumeView(ctx context.Context, id string) (int, error
 			return tx.Delete(id)
 		}
 
-		remaining = int(*viewCount) - 1
-		data["view_count"] = int64(remaining)
+		next := *viewCount - 1
+		if int64(int(next)) != next {
+			return fmt.Errorf("view_count %d is out of range", *viewCount)
+		}
+
+		remaining = int(next)
+		data["view_count"] = next
 		return tx.Set(id, data)
 	})
 	if err != nil {

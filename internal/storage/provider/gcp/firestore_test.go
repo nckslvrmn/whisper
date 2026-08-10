@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"math"
 	"testing"
 
 	storagetypes "github.com/nckslvrmn/whisper/internal/storage/types"
@@ -218,6 +219,20 @@ func TestFirestore_ConsumeView_PreservesPayload(t *testing.T) {
 	}
 	if got := fake.docs["keeppayload12345"]["ttl"]; got != int64(1893456000) {
 		t.Errorf("ttl = %v, want it preserved through the decrement", got)
+	}
+}
+
+func TestFirestore_ConsumeView_OutOfRangeCounterFailsClosed(t *testing.T) {
+	store, fake := newTestFirestoreStore(t)
+
+	fake.docs["corrupted1234567"] = map[string]any{"data": `{}`, "view_count": int64(math.MaxInt64)}
+
+	remaining, err := store.ConsumeView(context.Background(), "corrupted1234567")
+	if err != nil {
+		return
+	}
+	if remaining != math.MaxInt64-1 {
+		t.Errorf("remaining = %d, want an error or an exact decrement, never unlimited", remaining)
 	}
 }
 
