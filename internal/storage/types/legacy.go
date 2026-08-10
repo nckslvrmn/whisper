@@ -12,8 +12,8 @@ import (
 const sniffLen = 512
 
 // DecodeStoredPayload returns the secret payload for a stored column value.
-// Payloads are raw JSON; values written before that change are URL-safe
-// base64, and the base64 alphabet cannot produce a leading '{'.
+// Payloads are raw JSON. Values written before that change are URL-safe base64,
+// and the base64 alphabet cannot produce a leading '{'.
 func DecodeStoredPayload(stored string) ([]byte, error) {
 	if strings.HasPrefix(stored, "{") {
 		return []byte(stored), nil
@@ -27,10 +27,9 @@ type readCloser struct {
 }
 
 // DecodeStoredFile returns a reader over the raw ciphertext of a stored file.
-// Files are stored raw; older versions stored URL-safe base64 text, so the
-// first sniffLen bytes decide which one this is. Raw XChaCha ciphertext
-// staying inside the base64 alphabet for that many bytes has probability near
-// zero.
+// Files are stored raw, but older versions stored URL-safe base64 text, so the
+// first sniffLen bytes decide which one this is. Raw XChaCha ciphertext staying
+// inside the base64 alphabet for that many bytes has probability near zero.
 func DecodeStoredFile(rc io.ReadCloser) (io.ReadCloser, error) {
 	prefix := make([]byte, sniffLen)
 	n, err := io.ReadFull(rc, prefix)
