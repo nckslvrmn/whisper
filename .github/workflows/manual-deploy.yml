@@ -14,11 +14,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
-      - uses: nckslvrmn/docker-compose-deploy@main
-        with:
-          file: compose.yml
-        env:
-          S3_BUCKET: ${{ secrets.S3_BUCKET }}
-          DYNAMO_TABLE: ${{ secrets.DYNAMO_TABLE }}
-          WHISPER_VERSION: ${{ inputs.version }}
+    - uses: actions/checkout@v7
+    - uses: nckslvrmn/docker-compose-deploy@main
+      with:
+        file: compose.yml
+      env:
+        S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        DYNAMO_TABLE: ${{ secrets.DYNAMO_TABLE }}
+        WHISPER_VERSION: ${{ inputs.version }}
