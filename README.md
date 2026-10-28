@@ -125,6 +125,8 @@ Required roles: `roles/datastore.user`, `roles/storage.objectAdmin`.
 
 ## Cryptographic Design
 
+Two companion documents go deeper than this section: [SPEC.md](SPEC.md) is the normative wire and crypto format — enough to write an interoperable implementation — and [THREAT_MODEL.md](THREAT_MODEL.md) covers the adversaries Whisper does and does not defend against.
+
 ### WASM Module (Rust)
 
 The crypto module lives in `wasm/src/lib.rs` and is compiled to WASM via `wasm-bindgen`. It exports five functions to JavaScript, all called from `web/static/worker.js` rather than the main thread:
@@ -297,7 +299,7 @@ default-src 'self';
 script-src  'self' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com;
 style-src   'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com;
 font-src    'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com;
-img-src     'self' data:;
+img-src     'self' data: blob:;
 connect-src 'self' https://cdnjs.cloudflare.com;
 worker-src  'self';
 frame-ancestors 'none';
@@ -305,7 +307,7 @@ base-uri    'self';
 object-src  'none';
 ```
 
-`wasm-unsafe-eval` is required for `WebAssembly.instantiateStreaming()`. It permits WASM bytecode compilation only and does not enable `eval()` for JavaScript.
+`wasm-unsafe-eval` is required for `WebAssembly.instantiateStreaming()`. It permits WASM bytecode compilation only and does not enable `eval()` for JavaScript. `blob:` in `img-src` is for previews of decrypted image files, which render only through `<img>` and only for PNG, JPEG, GIF, WebP and AVIF.
 
 ### Other Security Controls
 

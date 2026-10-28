@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
 	"golang.org/x/crypto/chacha20poly1305"
@@ -263,6 +264,9 @@ func DecryptText(resp *DecryptResponse, displayPassphrase string) (string, error
 	if err != nil {
 		return "", fmt.Errorf("decrypt: %w", err)
 	}
+	if !utf8.Valid(pt) {
+		return "", errors.New("decrypted data is not valid UTF-8")
+	}
 	return string(pt), nil
 }
 
@@ -308,13 +312,12 @@ func DecryptFile(resp *DecryptResponse, displayPassphrase string) (*DecryptedFil
 	if err != nil {
 		return nil, fmt.Errorf("decrypt metadata: %w", err)
 	}
-	var meta struct {
-		FileName string `json:"file_name"`
-		FileType string `json:"file_type"`
-	}
+	var meta map[string]any
 	if err := json.Unmarshal(metaBytes, &meta); err != nil {
 		return nil, fmt.Errorf("parse metadata: %w", err)
 	}
+	fileName, _ := meta["file_name"].(string)
+	fileType, _ := meta["file_type"].(string)
 
 	data, err := xchachaOpen(encKey, nonce, header, resp.EncryptedFile)
 	if err != nil {
@@ -322,8 +325,8 @@ func DecryptFile(resp *DecryptResponse, displayPassphrase string) (*DecryptedFil
 	}
 
 	return &DecryptedFile{
-		Name:        meta.FileName,
-		ContentType: meta.FileType,
+		Name:        fileName,
+		ContentType: fileType,
 		Data:        data,
 	}, nil
 }

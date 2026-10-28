@@ -91,6 +91,64 @@ func TestDecryptTextWrongPassphraseFails(t *testing.T) {
 	}
 }
 
+func TestDecryptTextRejectsInvalidUTF8(t *testing.T) {
+	_, pass, err := EncryptText("", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	salt, passphrase, err := splitDisplayPassphrase(pass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encKey, _ := deriveKeys(passphrase, salt)
+	nonce := randBytes(NonceSize)
+	header := randBytes(HeaderSize)
+	ct, err := xchachaSeal(encKey, nonce, header, []byte{0xff, 0xfe})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := &DecryptResponse{EncryptedData: b64(ct), Nonce: b64(nonce), Header: b64(header)}
+	if _, err := DecryptText(resp, pass); err == nil {
+		t.Fatal("expected invalid UTF-8 plaintext to fail")
+	}
+}
+
+func TestDecryptFileNonStringMetadataIsEmpty(t *testing.T) {
+	data := []byte("file body")
+	payload, pass, err := EncryptFile("thing.bin", "application/octet-stream", data, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	salt, passphrase, err := splitDisplayPassphrase(pass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encKey, _ := deriveKeys(passphrase, salt)
+	blob, err := metadataBlob(encKey, randBytes(NonceSize), decode(t, payload.Header), []byte(`{"file_name":7,"file_type":null}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := &DecryptResponse{
+		EncryptedFile:     payload.EncryptedFile,
+		EncryptedMetadata: b64(blob),
+		Nonce:             payload.Nonce,
+		Header:            payload.Header,
+		IsFile:            true,
+	}
+	got, err := DecryptFile(resp, pass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "" || got.ContentType != "" {
+		t.Fatalf("metadata: got %+v, want empty name and type", got)
+	}
+	if !bytes.Equal(got.Data, data) {
+		t.Fatal("file bytes mismatch")
+	}
+}
+
 func TestHashPasswordDeterministic(t *testing.T) {
 	salt := bytes.Repeat([]byte{0x42}, SaltSize)
 	h1, err := HashPassword("hunter2", salt)

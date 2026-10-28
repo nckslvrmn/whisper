@@ -18,6 +18,10 @@ function splitPassphrase(displayPassphrase) {
   };
 }
 
+// The sender controls fileType, so previews only use these types and only
+// render through <img>. SVG is left out because it can carry script.
+const PREVIEWABLE_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif']);
+
 const TIMEOUTS = {
   FADE_TRANSITION: 200,
   COPY_RESET: 2000,
@@ -344,9 +348,19 @@ async function getSecret(event) {
       setTimeout(() => URL.revokeObjectURL(url), 100);
 
       const fileNameId = 'downloadedFileName_' + Date.now();
-      setResp('success', `<span class="checkmark">✓</span> File "<span id="${fileNameId}"></span>" downloaded successfully`, false);
+      const previewable = PREVIEWABLE_IMAGE_TYPES.has(result.fileType);
+      const previewBtnId = 'previewBtn_' + Date.now();
+      setResp('success', `<span class="checkmark">✓</span> File "<span id="${fileNameId}"></span>" downloaded successfully${previewable ? `
+      <button class="preview-btn-float" id="${previewBtnId}" aria-label="Show image preview">
+        <i class="fas fa-eye"></i> Preview
+      </button>` : ''}`, false);
       const fileNameEl = document.getElementById(fileNameId);
       if (fileNameEl) fileNameEl.textContent = result.fileName;
+      if (previewable) {
+        document.getElementById(previewBtnId)?.addEventListener('click', (e) => {
+          showImagePreview(e.currentTarget, result.fileData, result.fileType, result.fileName);
+        }, { once: true });
+      }
       toast.success('File downloaded successfully');
     } else {
       const data = await response.json();
@@ -437,6 +451,25 @@ function setResp(level, content, text_resp) {
       results.classList.add('active');
     });
   }
+}
+
+function showImagePreview(button, fileData, fileType, fileName) {
+  const url = URL.createObjectURL(new Blob([fileData], { type: fileType }));
+  const img = document.createElement('img');
+  img.className = 'secret-preview';
+  img.alt = fileName;
+  img.addEventListener('load', () => {
+    URL.revokeObjectURL(url);
+    scrollToResults();
+  }, { once: true });
+  img.addEventListener('error', () => {
+    URL.revokeObjectURL(url);
+    img.remove();
+    toast.error('Preview unavailable for this file');
+  }, { once: true });
+  img.src = url;
+  button.after(img);
+  button.remove();
 }
 
 function scrollToResults() {

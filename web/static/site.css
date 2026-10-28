@@ -322,6 +322,14 @@ input[type="file"].form-control {
   border: none;
 }
 
+.secret-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  margin-top: 0.75rem;
+  border-radius: 0.25rem;
+}
+
 .alert-success {
   background-color: var(--green) !important;
   color: var(--background);
@@ -362,7 +370,7 @@ input[type="file"].form-control {
   }
 }
 
-.copy-btn-float {
+:is(.copy-btn-float, .preview-btn-float) {
   position: absolute;
   inset: 0.75rem 0.75rem auto auto;
   display: inline-flex;

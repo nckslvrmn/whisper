@@ -116,7 +116,7 @@ func main() {
 			"script-src 'self' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com; " +
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " +
 			"font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; " +
-			"img-src 'self' data:; " +
+			"img-src 'self' data: blob:; " +
 			"connect-src 'self' https://cdnjs.cloudflare.com; " +
 			"worker-src 'self'; " +
 			"frame-ancestors 'none'; " +
