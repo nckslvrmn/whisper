@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.23.14
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.72.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.3
-	github.com/labstack/echo/v4 v4.16.0
+	github.com/labstack/echo/v4 v4.16.1
 	github.com/mattn/go-sqlite3 v1.14.52
 	golang.org/x/crypto v0.58.0
 	google.golang.org/api v0.306.0
