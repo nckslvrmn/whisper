@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 	"github.com/nckslvrmn/whisper/internal/storage"
 	"github.com/nckslvrmn/whisper/internal/storage/types"
 )
@@ -44,7 +44,7 @@ type TextResponse struct {
 	IsFile        bool   `json:"isFile"`
 }
 
-func Decrypt(c echo.Context) error {
+func Decrypt(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	var req DecryptRequest
@@ -61,13 +61,13 @@ func Decrypt(c echo.Context) error {
 		if errors.Is(err, types.ErrNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, notFoundMessage)
 		}
-		c.Logger().Error("error reading secret: ", err)
+		c.Logger().Error("error reading secret", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "error reading secret")
 	}
 
 	var payload SecretPayload
 	if err := json.Unmarshal(encoded, &payload); err != nil {
-		c.Logger().Error("error parsing secret data: ", err)
+		c.Logger().Error("error parsing secret data", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "invalid secret data")
 	}
 
@@ -87,7 +87,7 @@ func Decrypt(c echo.Context) error {
 	if payload.IsFile {
 		file, err = storage.GetFileStore().GetEncryptedFile(ctx, req.SecretId)
 		if err != nil {
-			c.Logger().Error("error reading encrypted file: ", err)
+			c.Logger().Error("error reading encrypted file", "error", err)
 			return echo.NewHTTPError(http.StatusInternalServerError, "error reading encrypted file")
 		}
 		defer file.Close()
@@ -98,7 +98,7 @@ func Decrypt(c echo.Context) error {
 		if errors.Is(err, types.ErrNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, notFoundMessage)
 		}
-		c.Logger().Error("error consuming view: ", err)
+		c.Logger().Error("error consuming view", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "error consuming view")
 	}
 
@@ -127,16 +127,16 @@ func Decrypt(c echo.Context) error {
 	return streamErr
 }
 
-func purge(c echo.Context, secretId string, isFile bool) {
+func purge(c *echo.Context, secretId string, isFile bool) {
 	if err := storage.GetSecretStore().DeleteSecret(c.Request().Context(), secretId); err != nil {
-		c.Logger().Error("error deleting expired secret: ", err)
+		c.Logger().Error("error deleting expired secret", "error", err)
 	}
 	if isFile {
 		deleteFile(c, secretId)
 	}
 }
 
-func deleteFile(c echo.Context, secretId string) {
+func deleteFile(c *echo.Context, secretId string) {
 	fileStore := storage.GetFileStore()
 	if fileStore == nil {
 		return
@@ -146,6 +146,6 @@ func deleteFile(c echo.Context, secretId string) {
 	defer cancel()
 
 	if err := fileStore.DeleteEncryptedFile(ctx, secretId); err != nil {
-		c.Logger().Error("error deleting encrypted file: ", err)
+		c.Logger().Error("error deleting encrypted file", "error", err)
 	}
 }

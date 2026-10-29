@@ -12,8 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	echo "github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"log/slog"
+
+	echo "github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"github.com/nckslvrmn/whisper/internal/config"
 	"github.com/nckslvrmn/whisper/internal/handlers"
 	custommw "github.com/nckslvrmn/whisper/internal/middleware"
@@ -24,7 +26,7 @@ type TemplateRegistry struct {
 	templates map[string]*template.Template
 }
 
-func (t *TemplateRegistry) Render(w io.Writer, name string, data any, c echo.Context) error {
+func (t *TemplateRegistry) Render(c *echo.Context, w io.Writer, name string, data any) error {
 	if tmpl, ok := t.templates[name]; ok {
 		return tmpl.Execute(w, data)
 	}
@@ -78,20 +80,21 @@ func main() {
 	}
 
 	e := echo.New()
+	slog.SetDefault(e.Logger)
 
 	if err := config.LoadAppConfig(); err != nil {
-		e.Logger.Fatal(err)
+		fatal(e.Logger, "loading config", err)
 	}
 
 	if err := storage.Initialize(); err != nil {
-		e.Logger.Fatal(err)
+		fatal(e.Logger, "initializing storage", err)
 	}
 
 	compressedCache := custommw.NewCompressedFileCache("web/static")
 	if err := compressedCache.PrecompressStaticFiles(); err != nil {
-		e.Logger.Warnf("Failed to pre-compress static files: %v", err)
+		e.Logger.Warn("failed to pre-compress static files", "error", err)
 	} else {
-		e.Logger.Info("Pre-compressed static files successfully")
+		e.Logger.Info("pre-compressed static files")
 	}
 
 	templates := map[string]*template.Template{
@@ -135,7 +138,7 @@ func main() {
 		Level: 5,
 		// Static assets are pre-compressed, and every API body is ciphertext
 		// or base64 ciphertext, which gzip cannot shrink.
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			path := c.Path()
 			switch path {
 			case "/encrypt", "/encrypt_file", "/decrypt", "/healthz":
@@ -151,12 +154,9 @@ func main() {
 		Timeout: 30 * time.Second,
 	}))
 
-	e.Use(middleware.BodyLimit(fmt.Sprintf("%dM", config.MaxFileSizeMB)))
+	e.Use(middleware.BodyLimit(int64(config.MaxFileSizeMB) * 1024 * 1024))
 
 	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(100)))
-
-	e.HideBanner = true
-	e.HidePort = true
 
 	e.GET("/", index)
 	e.GET("/healthz", healthz)
@@ -165,40 +165,42 @@ func main() {
 	e.POST("/encrypt_file", handlers.EncryptFile)
 	e.POST("/decrypt", handlers.Decrypt)
 
-	go func() {
-		if err := e.Start(":" + config.Port); err != nil && err != http.ErrServerClosed {
-			e.Logger.Fatal("shutting down the server")
-		}
-	}()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
-	<-quit
-
-	e.Logger.Info("Shutting down server...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := e.Shutdown(ctx); err != nil {
-		e.Logger.Fatal(err)
+	sc := echo.StartConfig{
+		Address:         ":" + config.Port,
+		HideBanner:      true,
+		HidePort:        true,
+		GracefulTimeout: 10 * time.Second,
+		OnShutdownError: func(err error) {
+			fatal(e.Logger, "shutting down server", err)
+		},
+	}
+	if err := sc.Start(ctx, e); err != nil {
+		fatal(e.Logger, "serving", err)
 	}
 
 	if err := storage.Close(); err != nil {
-		e.Logger.Errorf("error closing storage: %v", err)
+		e.Logger.Error("error closing storage", "error", err)
 	}
 
-	e.Logger.Info("Server shutdown complete")
+	e.Logger.Info("server shutdown complete")
 }
 
-func healthz(c echo.Context) error {
+func fatal(logger *slog.Logger, msg string, err error) {
+	logger.Error(msg, "error", err)
+	os.Exit(1)
+}
+
+func healthz(c *echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func index(c echo.Context) error {
+func index(c *echo.Context) error {
 	return c.Render(http.StatusOK, "index", getTemplateData())
 }
 
-func secret(c echo.Context) error {
+func secret(c *echo.Context) error {
 	return c.Render(http.StatusOK, "secret", getTemplateData())
 }

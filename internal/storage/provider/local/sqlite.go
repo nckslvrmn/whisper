@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -50,7 +50,7 @@ func NewSQLiteStore(dataDir string, fileStore storagetypes.FileStore) (storagety
 
 	go store.janitor(janitorInterval)
 
-	log.Printf("SQLite store initialized at %s", dbPath)
+	slog.Info("sqlite store initialized", "path", dbPath)
 	return store, nil
 }
 
@@ -64,9 +64,9 @@ func (s *SQLiteStore) janitor(interval time.Duration) {
 			return
 		case <-ticker.C:
 			if rowsAffected, err := s.cleanupExpiredSecrets(context.Background()); err != nil {
-				log.Printf("Warning: failed to cleanup expired secrets: %v", err)
+				slog.Warn("failed to clean up expired secrets", "error", err)
 			} else {
-				log.Printf("Successfully cleaned up %d expired secrets", rowsAffected)
+				slog.Info("cleaned up expired secrets", "count", rowsAffected)
 			}
 		}
 	}
@@ -201,7 +201,7 @@ func (s *SQLiteStore) cleanupExpiredSecrets(ctx context.Context) (int64, error) 
 	for rows.Next() {
 		var secretId string
 		if err := rows.Scan(&secretId); err != nil {
-			log.Printf("Warning: failed to scan secret_id during cleanup: %v", err)
+			slog.Warn("failed to scan secret_id during cleanup", "error", err)
 			continue
 		}
 		expired = append(expired, secretId)
@@ -214,7 +214,7 @@ func (s *SQLiteStore) cleanupExpiredSecrets(ctx context.Context) (int64, error) 
 	if s.fileStore != nil {
 		for _, secretId := range expired {
 			if err := s.fileStore.DeleteEncryptedFile(ctx, secretId); err != nil {
-				log.Printf("Warning: failed to delete encrypted file for secret %s: %v", secretId, err)
+				slog.Warn("failed to delete encrypted file for expired secret", "secret_id", secretId, "error", err)
 			}
 		}
 	}

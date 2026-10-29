@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/nckslvrmn/whisper/internal/middleware"
 )
 
@@ -40,7 +40,7 @@ func TestGetContentType_WASM(t *testing.T) {
 	cache.PrecompressStaticFiles()
 
 	e := echo.New()
-	handler := cache.Middleware(func(ctx echo.Context) error {
+	handler := cache.Middleware(func(ctx *echo.Context) error {
 		return ctx.String(http.StatusOK, "ok")
 	})
 
@@ -67,7 +67,7 @@ func TestGetContentType_JS(t *testing.T) {
 	cache.PrecompressStaticFiles()
 
 	e := echo.New()
-	handler := cache.Middleware(func(ctx echo.Context) error {
+	handler := cache.Middleware(func(ctx *echo.Context) error {
 		return ctx.String(http.StatusOK, "ok")
 	})
 
@@ -94,7 +94,7 @@ func TestGetContentType_CSS(t *testing.T) {
 	cache.PrecompressStaticFiles()
 
 	e := echo.New()
-	handler := cache.Middleware(func(ctx echo.Context) error {
+	handler := cache.Middleware(func(ctx *echo.Context) error {
 		return ctx.String(http.StatusOK, "ok")
 	})
 
@@ -322,7 +322,7 @@ func TestMiddleware_NonStaticPath_PassesThrough(t *testing.T) {
 
 	e := echo.New()
 	called := false
-	handler := cache.Middleware(func(ctx echo.Context) error {
+	handler := cache.Middleware(func(ctx *echo.Context) error {
 		called = true
 		return ctx.String(http.StatusOK, "next")
 	})
@@ -348,7 +348,7 @@ func TestMiddleware_NoAcceptEncoding_PassesThrough(t *testing.T) {
 
 	e := echo.New()
 	called := false
-	handler := cache.Middleware(func(ctx echo.Context) error {
+	handler := cache.Middleware(func(ctx *echo.Context) error {
 		called = true
 		return ctx.String(http.StatusOK, "next")
 	})
@@ -373,7 +373,7 @@ func TestMiddleware_GzipAccepted_SetsHeaders(t *testing.T) {
 	cache.PrecompressStaticFiles()
 
 	e := echo.New()
-	handler := cache.Middleware(func(ctx echo.Context) error {
+	handler := cache.Middleware(func(ctx *echo.Context) error {
 		return ctx.String(http.StatusOK, "next")
 	})
 
@@ -402,7 +402,7 @@ func TestMiddleware_GzipContent_IsValidGzip(t *testing.T) {
 	cache.PrecompressStaticFiles()
 
 	e := echo.New()
-	handler := cache.Middleware(func(ctx echo.Context) error {
+	handler := cache.Middleware(func(ctx *echo.Context) error {
 		return ctx.String(http.StatusOK, "next")
 	})
 
@@ -439,7 +439,7 @@ func TestMiddleware_BrotliAccepted_SetsHeaders(t *testing.T) {
 	cache.PrecompressStaticFiles()
 
 	e := echo.New()
-	handler := cache.Middleware(func(ctx echo.Context) error {
+	handler := cache.Middleware(func(ctx *echo.Context) error {
 		return ctx.String(http.StatusOK, "next")
 	})
 
@@ -464,7 +464,7 @@ func TestMiddleware_PathTraversal_PassesThrough(t *testing.T) {
 
 	e := echo.New()
 	called := false
-	handler := cache.Middleware(func(ctx echo.Context) error {
+	handler := cache.Middleware(func(ctx *echo.Context) error {
 		called = true
 		return ctx.String(http.StatusOK, "next")
 	})

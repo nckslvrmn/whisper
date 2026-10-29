@@ -7,7 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 	"github.com/nckslvrmn/whisper/internal/storage"
 	"github.com/nckslvrmn/whisper/pkg/utils"
 )
@@ -71,7 +71,7 @@ func (r *FileRequest) validate() error {
 	return validateLimits(r.ViewCount, r.TTL)
 }
 
-func EncryptString(c echo.Context) error {
+func EncryptString(c *echo.Context) error {
 	var req TextRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
@@ -95,7 +95,7 @@ func EncryptString(c echo.Context) error {
 	return respondStored(c, secretId)
 }
 
-func EncryptFile(c echo.Context) error {
+func EncryptFile(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	parts, err := c.Request().MultipartReader()
@@ -125,7 +125,7 @@ func EncryptFile(c echo.Context) error {
 		if errors.Is(err, errFileTooLarge) {
 			return echo.NewHTTPError(http.StatusBadRequest, "file size exceeds limit")
 		}
-		c.Logger().Error("error storing file: ", err)
+		c.Logger().Error("error storing file", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "error storing file")
 	}
 
@@ -174,15 +174,15 @@ func readPayloadPart(parts *multipart.Reader) (*FileRequest, error) {
 	return &req, nil
 }
 
-func storeSecret(c echo.Context, secretId string, payload SecretPayload, ttl *int64, viewCount *int) error {
+func storeSecret(c *echo.Context, secretId string, payload SecretPayload, ttl *int64, viewCount *int) error {
 	encoded, err := json.Marshal(payload)
 	if err != nil {
-		c.Logger().Error("error serializing secret data: ", err)
+		c.Logger().Error("error serializing secret data", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "error serializing secret data")
 	}
 
 	if err := storage.GetSecretStore().StoreSecret(c.Request().Context(), secretId, encoded, ttl, viewCount); err != nil {
-		c.Logger().Error("error storing secret: ", err)
+		c.Logger().Error("error storing secret", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "error storing secret")
 	}
 
@@ -190,12 +190,12 @@ func storeSecret(c echo.Context, secretId string, payload SecretPayload, ttl *in
 }
 
 // discardFile keeps a failed upload from leaving an object behind forever.
-func discardFile(c echo.Context, secretId string) {
+func discardFile(c *echo.Context, secretId string) {
 	if err := storage.GetFileStore().DeleteEncryptedFile(c.Request().Context(), secretId); err != nil {
-		c.Logger().Error("error deleting orphaned file: ", err)
+		c.Logger().Error("error deleting orphaned file", "error", err)
 	}
 }
 
-func respondStored(c echo.Context, secretId string) error {
+func respondStored(c *echo.Context, secretId string) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "success", "secretId": secretId})
 }

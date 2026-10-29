@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 
 	"github.com/nckslvrmn/whisper/internal/config"
 	"github.com/nckslvrmn/whisper/internal/storage/provider/aws"
@@ -22,14 +22,14 @@ func Initialize() error {
 	}
 
 	if config.UsesAWS {
-		log.Println("Initializing AWS storage providers (DynamoDB and S3)")
+		slog.Info("initializing storage", "provider", "aws", "secrets", "dynamodb", "files", "s3")
 		secretStore = aws.NewDynamoStore()
 		fileStore = aws.NewS3Store()
 		return nil
 	}
 
 	if config.UsesGCP {
-		log.Println("Initializing GCP storage providers (Firestore and GCS)")
+		slog.Info("initializing storage", "provider", "gcp", "secrets", "firestore", "files", "gcs")
 		var err error
 		secretStore, err = gcp.NewFirestoreStore()
 		if err != nil {
@@ -39,7 +39,7 @@ func Initialize() error {
 		return nil
 	}
 
-	log.Println("No AWS or GCP configuration found, using local storage providers (SQLite and file system)")
+	slog.Info("no AWS or GCP configuration found, using local storage", "provider", "local", "secrets", "sqlite", "files", "filesystem")
 
 	fileStore = local.NewLocalFileStore(config.DataDir)
 

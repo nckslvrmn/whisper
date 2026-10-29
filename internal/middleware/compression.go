@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"io/fs"
 	"mime"
 	"net/http"
 	"os"
@@ -13,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/andybalholm/brotli"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // staticCacheControl makes browsers revalidate every static asset. The whole
@@ -29,6 +30,7 @@ type CompressedFileCache struct {
 	etags      map[string]string
 	baseDir    string
 	absBaseDir string
+	fsys       fs.FS
 }
 
 func NewCompressedFileCache(baseDir string) *CompressedFileCache {
@@ -42,6 +44,7 @@ func NewCompressedFileCache(baseDir string) *CompressedFileCache {
 		etags:      make(map[string]string),
 		baseDir:    baseDir,
 		absBaseDir: absBaseDir,
+		fsys:       os.DirFS(absBaseDir),
 	}
 }
 
@@ -107,7 +110,7 @@ func contentETag(path string) (string, error) {
 }
 
 func (c *CompressedFileCache) Middleware(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(ctx echo.Context) error {
+	return func(ctx *echo.Context) error {
 		if !strings.HasPrefix(ctx.Path(), "/static") {
 			return next(ctx)
 		}
@@ -129,30 +132,44 @@ func (c *CompressedFileCache) Middleware(next echo.HandlerFunc) echo.HandlerFunc
 		header.Set("Cache-Control", staticCacheControl)
 
 		if hasBr && strings.Contains(acceptEncoding, "br") {
-			absPath, err := filepath.Abs(filepath.Join(c.baseDir, relPath+".br"))
-			if err != nil || !strings.HasPrefix(absPath, c.absBaseDir) {
+			name, ok := c.resolve(relPath + ".br")
+			if !ok {
 				return next(ctx)
 			}
 			header.Set("Content-Encoding", "br")
 			header.Set("Content-Type", getContentType(relPath))
 			setETag(header, etag, "br")
-			return ctx.File(absPath)
+			return ctx.FileFS(name, c.fsys)
 		}
 
 		if hasGz && strings.Contains(acceptEncoding, "gzip") {
-			absPath, err := filepath.Abs(filepath.Join(c.baseDir, relPath+".gz"))
-			if err != nil || !strings.HasPrefix(absPath, c.absBaseDir) {
+			name, ok := c.resolve(relPath + ".gz")
+			if !ok {
 				return next(ctx)
 			}
 			header.Set("Content-Encoding", "gzip")
 			header.Set("Content-Type", getContentType(relPath))
 			setETag(header, etag, "gzip")
-			return ctx.File(absPath)
+			return ctx.FileFS(name, c.fsys)
 		}
 
 		setETag(header, etag, "")
 		return next(ctx)
 	}
+}
+
+// resolve returns the path relative to the static root, or false when the
+// request escapes it.
+func (c *CompressedFileCache) resolve(relPath string) (string, bool) {
+	absPath, err := filepath.Abs(filepath.Join(c.absBaseDir, relPath))
+	if err != nil || !strings.HasPrefix(absPath, c.absBaseDir) {
+		return "", false
+	}
+	name, err := filepath.Rel(c.absBaseDir, absPath)
+	if err != nil {
+		return "", false
+	}
+	return filepath.ToSlash(name), true
 }
 
 // setETag tags each encoding separately, since a compressed body and a plain

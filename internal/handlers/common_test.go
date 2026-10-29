@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 
 	"github.com/nckslvrmn/whisper/internal/config"
 )

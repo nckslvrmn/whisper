@@ -66,6 +66,15 @@ func (f *fakeS3) AbortMultipartUpload(context.Context, *s3.AbortMultipartUploadI
 	return nil, errors.New("unexpected multipart upload")
 }
 
+// Only the download and directory operations use these; the store never calls them.
+func (f *fakeS3) HeadObject(context.Context, *s3.HeadObjectInput, ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+	return nil, errors.New("unexpected HeadObject")
+}
+
+func (f *fakeS3) ListObjectsV2(context.Context, *s3.ListObjectsV2Input, ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+	return nil, errors.New("unexpected ListObjectsV2")
+}
+
 func newTestS3Store(t *testing.T) (*S3Store, *fakeS3) {
 	t.Helper()
 	config.S3Bucket = "test-bucket"

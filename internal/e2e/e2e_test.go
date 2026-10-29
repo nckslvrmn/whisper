@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 	"github.com/nckslvrmn/whisper/internal/config"
 	"github.com/nckslvrmn/whisper/internal/handlers"
 	"github.com/nckslvrmn/whisper/internal/storage"
@@ -41,7 +41,6 @@ func newServer(t *testing.T) *client.Client {
 	storage.SetSecretStore(secretStore)
 
 	e := echo.New()
-	e.HideBanner = true
 	e.POST("/encrypt", handlers.EncryptString)
 	e.POST("/encrypt_file", handlers.EncryptFile)
 	e.POST("/decrypt", handlers.Decrypt)

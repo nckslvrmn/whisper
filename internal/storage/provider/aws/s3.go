@@ -8,7 +8,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	tmtypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/nckslvrmn/whisper/internal/config"
@@ -16,8 +17,7 @@ import (
 )
 
 type S3API interface {
-	manager.UploadAPIClient
-	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	transfermanager.S3APIClient
 	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
 }
 
@@ -37,16 +37,14 @@ func objectKey(id string) *string {
 }
 
 func (s *S3Store) StoreEncryptedFile(ctx context.Context, id string, r io.Reader) error {
-	// The uploader streams in parts, so the body length does not need to be
-	// known up front and the whole file never lands in memory. Its replacement,
-	// feature/s3/transfermanager, is still in preview.
-	uploader := manager.NewUploader(s.client)          //nolint:staticcheck
-	_, err := uploader.Upload(ctx, &s3.PutObjectInput{ //nolint:staticcheck
+	// The transfer manager streams in parts, so the body length does not need
+	// to be known up front and the whole file never lands in memory.
+	_, err := transfermanager.New(s.client).UploadObject(ctx, &transfermanager.UploadObjectInput{
 		Bucket:               aws.String(config.S3Bucket),
 		Key:                  objectKey(id),
 		Body:                 r,
-		ACL:                  types.ObjectCannedACLPrivate,
-		ServerSideEncryption: types.ServerSideEncryptionAwsKms,
+		ACL:                  tmtypes.ObjectCannedACLPrivate,
+		ServerSideEncryption: tmtypes.ServerSideEncryptionAwsKms,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to upload secret file to S3: %w", err)

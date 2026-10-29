@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 	"github.com/nckslvrmn/whisper/internal/storage"
 	"github.com/nckslvrmn/whisper/internal/storage/types"
 )
@@ -196,7 +196,7 @@ func setupMockStores() (*mockSecretStore, *mockFileStore) {
 }
 
 // newEchoContext creates a test Echo POST context with a JSON body.
-func newEchoContext(body string) (echo.Context, *httptest.ResponseRecorder) {
+func newEchoContext(body string) (*echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -205,7 +205,7 @@ func newEchoContext(body string) (echo.Context, *httptest.ResponseRecorder) {
 }
 
 // Parts go out in the order given, so tests can send malformed uploads.
-func newMultipartContext(parts [][2]string) (echo.Context, *httptest.ResponseRecorder) {
+func newMultipartContext(parts [][2]string) (*echo.Context, *httptest.ResponseRecorder) {
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
 	for _, part := range parts {

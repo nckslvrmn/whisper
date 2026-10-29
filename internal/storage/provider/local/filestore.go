@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,10 +27,10 @@ func NewLocalFileStore(dataDir string) storagetypes.FileStore {
 	filesDir := filepath.Join(dataDir, "files")
 
 	if err := os.MkdirAll(filesDir, 0755); err != nil {
-		log.Printf("Warning: failed to create files directory: %v", err)
+		slog.Warn("failed to create files directory", "path", filesDir, "error", err)
 	}
 
-	log.Printf("Local file store initialized at %s", filesDir)
+	slog.Info("local file store initialized", "path", filesDir)
 	return &LocalFileStore{
 		dataDir: filesDir,
 	}

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	echo "github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v5"
 )
 
 func seedSecret(t *testing.T, ss *mockSecretStore, secretId string, payload SecretPayload, ttl *int64, viewCount *int) {
