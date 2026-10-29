@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/rust:1.99-alpine3.24 AS wasm-builder
+FROM ghcr.io/rust-lang/rust:1.99-alpine3.24 AS wasm-builder
 RUN apk add --no-cache brotli binaryen && \
     rustup target add wasm32-unknown-unknown && \
     cargo install wasm-bindgen-cli --version 0.2.128 --locked
@@ -18,7 +18,7 @@ RUN touch src/lib.rs && \
     gzip -9 -k -f /wasm_out/crypto_bg.wasm && \
     brotli -9 -k -f /wasm_out/crypto_bg.wasm
 
-FROM public.ecr.aws/docker/library/golang:1.27-alpine3.24 AS go-builder
+FROM mirror.gcr.io/library/golang:1.27-alpine3.24 AS go-builder
 RUN apk add --no-cache ca-certificates musl-dev g++
 WORKDIR /src
 COPY go.mod go.sum ./
